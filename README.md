@@ -23,7 +23,7 @@ projected back to the exact target statistics.
 
 | Bulbasaur | Charizard | Gengar | Lapras | Pikachu |
 |---|---|---|---|---|
-| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](docs/examples/denoising_gifs/pikachu_denoising.gif) |
+| ![Bulbasaur denoising](scripts/pokefusion/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](scripts/pokefusion/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](scripts/pokefusion/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](scripts/pokefusion/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](scripts/pokefusion/examples/denoising_gifs/pikachu_denoising.gif) |
 
 ## Pokefusion: a self-contained data and diffusion package
 
