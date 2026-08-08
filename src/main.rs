@@ -1,392 +1,307 @@
 use clap::Parser;
-use gnuplot::AxesCommon;
-use gnuplot::Fix;
-use gnuplot::{Caption, Color, Figure, Graph};
+use gnuplot::{AxesCommon, Caption, Color, Figure, Fix, Graph};
 use kdam::tqdm;
-use rand::Rng;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_distr::Normal;
+use serde_json::json;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
+use datasaurust::contour::load_contour_file;
 use datasaurust::optim::*;
-use datasaurust::shapes::*;
-use datasaurust::types::*;
+use datasaurust::shapes::get_shape;
+use datasaurust::types::{Data, Line};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the initial dataset
+    /// Initial headerless x,y dataset whose moments must be preserved.
     #[arg(short, long, default_value = "data/seed_datasets/Datasaurus_data.csv")]
     dataset: String,
 
-    // Name of the output file with a default value
+    /// Output CSV basename.
     #[arg(short, long, default_value = "output")]
     output: String,
 
-    /// Number of iterations
-    #[arg(short, long, default_value_t = 4000000)]
+    /// Number of seeded contour-loss updates.
+    #[arg(short, long, default_value_t = 4_000_000)]
     num_iterations: u32,
 
-    // define a boolean flag to enable plotting
     #[arg(short, long, default_value_t = false)]
     plot: bool,
 
-    // define a boolean flag to save plots
     #[arg(short, long, default_value_t = false)]
     save_plots: bool,
 
-    // define a boolean flag to use uniform sampling
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false, conflicts_with = "gaussian")]
     uniform: bool,
 
-    // define a boolean flag to use gaussian sampling
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false, conflicts_with = "uniform")]
     gaussian: bool,
 
-    // log interval
-    #[arg(short, long, default_value_t = 10000)]
+    #[arg(short, long, default_value_t = 10_000)]
     log_interval: u32,
 
-    // Number of decimals that are constant
+    /// Display-only precision; never used for acceptance.
     #[arg(long, default_value_t = 2)]
     decimals: i32,
 
-    // For the plots, number of digits that change
-    #[arg(long, default_value_t = 5)]
-    n_digits: usize,
-
-    // Min distance allowed between point and line segments
+    /// Maximum accepted final mean distance to the contour.
     #[arg(long, default_value_t = 1.0)]
     allowed_distance: f32,
 
-    // Desired shape
-    #[arg(long, default_value = "cat")]
-    shape: String,
+    /// Backward-compatible built-in target shape.
+    #[arg(long, conflicts_with = "shape_file")]
+    shape: Option<String>,
 
-    // Random seed when using Gaussian
-    // TODO: make the rest deterministic
+    /// Runtime contour CSV with contour_id,order,x,y,closed columns.
+    #[arg(long, value_name = "PATH", conflicts_with = "shape")]
+    shape_file: Option<PathBuf>,
+
+    /// Seed shared by initialization and every optimizer random choice.
     #[arg(long, default_value_t = 42)]
     seed: u64,
 
-    // Min temperature
     #[arg(long, default_value_t = 0.0001)]
     min_temperature: f64,
 
-    // Max temperature
     #[arg(long, default_value_t = 0.4)]
     max_temperature: f64,
+
+    /// Absolute tolerance for all five final statistics.
+    #[arg(long, default_value_t = 1e-4)]
+    stats_tolerance: f32,
+
+    /// Reproject moments after this many accepted shape moves; zero disables periodic projection.
+    #[arg(long, default_value_t = 1_000)]
+    project_every: u32,
+
+    /// Optional JSON report for the final full-precision acceptance decision.
+    #[arg(long, value_name = "PATH")]
+    manifest_out: Option<PathBuf>,
+}
+
+fn shape_name(args: &Args) -> String {
+    if let Some(path) = &args.shape_file {
+        path.file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("runtime-contour")
+            .to_owned()
+    } else {
+        args.shape.clone().unwrap_or_else(|| "cat".to_owned())
+    }
+}
+
+fn load_shape(args: &Args) -> Result<Vec<Line>, String> {
+    if let Some(path) = &args.shape_file {
+        load_contour_file(path)
+    } else {
+        Ok(get_shape(args.shape.as_deref().unwrap_or("cat"), 0.0, 0.0))
+    }
+}
+
+fn initialize_data(args: &Args, rng: &mut rand::rngs::StdRng) -> Data {
+    if args.uniform {
+        let mut data = Data {
+            x: vec![0.0; 1_000],
+            y: vec![0.0; 1_000],
+        };
+        for index in 0..data.x.len() {
+            data.x[index] = rng.gen_range(20.0..80.0);
+            data.y[index] = rng.gen_range(20.0..80.0);
+        }
+        data
+    } else if args.gaussian {
+        let normal_x = Normal::new(55.0, 16.0).unwrap();
+        let normal_y = Normal::new(50.0, 20.0).unwrap();
+        let mut data = Data {
+            x: vec![0.0; 800],
+            y: vec![0.0; 800],
+        };
+        for index in 0..data.x.len() {
+            data.x[index] = rng.sample::<f32, _>(normal_x).clamp(1.0, 98.0);
+            data.y[index] = rng.sample::<f32, _>(normal_y).clamp(1.0, 98.0);
+        }
+        data
+    } else {
+        read_data(&args.dataset)
+    }
+}
+
+fn save_plot(
+    figure: &mut Figure,
+    data: &Data,
+    stats: (f32, f32, f32, f32, f32),
+    bounds: ((f32, f32), (f32, f32)),
+    decimals: usize,
+    destination: Option<&Path>,
+) {
+    figure.clear_axes();
+    let labels = [
+        format!("X Mean: {:.decimals$}", stats.0),
+        format!("Y Mean: {:.decimals$}", stats.1),
+        format!("X SD:   {:.decimals$}", stats.2),
+        format!("Y SD:   {:.decimals$}", stats.3),
+        format!("Corr:   {:.decimals$}", stats.4),
+    ];
+    let axes = figure
+        .axes2d()
+        .set_title("DatasauRust", &[])
+        .set_x_label("X", &[])
+        .set_y_label("Y", &[])
+        .set_x_range(Fix(bounds.0 .0 as f64), Fix(bounds.0 .1 as f64))
+        .set_y_range(Fix(bounds.1 .0 as f64), Fix(bounds.1 .1 as f64))
+        .points(
+            data.x.iter(),
+            data.y.iter(),
+            &[
+                Caption(""),
+                gnuplot::PointSymbol('O'),
+                gnuplot::PointSize(1.5),
+                Color("black"),
+            ],
+        );
+    for (index, label) in labels.iter().enumerate() {
+        axes.label(
+            label,
+            Graph(0.32),
+            Graph(0.95 - index as f64 * 0.055),
+            &[
+                gnuplot::Font("Monospace", 14.0),
+                gnuplot::TextColor("black"),
+            ],
+        );
+    }
+    if let Some(path) = destination {
+        figure.save_to_png(path, 640, 480).unwrap();
+    } else {
+        figure.show_and_keep_running().unwrap();
+    }
+}
+
+fn stats_json(stats: (f32, f32, f32, f32, f32)) -> serde_json::Value {
+    json!({
+        "mean_x": stats.0,
+        "mean_y": stats.1,
+        "std_x": stats.2,
+        "std_y": stats.3,
+        "corr": stats.4,
+    })
 }
 
 fn main() {
-    // let args = Args::parse_args_default_or_exit();
     let args = Args::parse();
+    assert!(
+        args.stats_tolerance >= 0.0,
+        "--stats-tolerance must be non-negative"
+    );
+    assert!(args.log_interval > 0, "--log-interval must be positive");
+    let fixed_lines = load_shape(&args).unwrap_or_else(|error| panic!("{error}"));
+    let mut rng = rand::rngs::StdRng::seed_from_u64(args.seed);
+    let initial_data = initialize_data(&args, &mut rng);
+    let mut best_data = initial_data.clone();
+    let x_bounds = (-20.0, 130.0);
+    let y_bounds = (-10.0, 145.0);
+    let label = shape_name(&args);
+    let log_folder = PathBuf::from("logs").join(&label);
+    std::fs::create_dir_all(&log_folder).unwrap();
+    let mut figure = Figure::new();
 
-    let num_iterations = args.num_iterations;
-
-    let mut data: Data;
-    // let offset_x: f32 = -55.81 + 4.12;
-    // let offset_y: f32 = -49.63 + 20.23;
-    let offset_x: f32 = 0.0;
-    let offset_y: f32 = 0.0;
-
-    // Fixed boundaries for the data
-    let x_bounds = (-20.0 + offset_x, 130.0 + offset_x);
-    let y_bounds = (-10.0 + offset_y, 145.0 + offset_y);
-
-    if args.uniform {
-        println!("Using uniform sampling");
-
-        let n_points = 1000;
-        let x_bounds_sample = (20.0, 80.0);
-        let y_bounds_sample = (20.0, 80.0);
-        // Sample n_points uniformly from the bounds
-        let mut rng = rand::thread_rng();
-
-        data = Data {
-            x: vec![0.0; n_points],
-            y: vec![0.0; n_points],
-        };
-
-        for i in 0..n_points {
-            data.x[i] = rng.gen_range(x_bounds_sample.0..x_bounds_sample.1);
-            data.y[i] = rng.gen_range(y_bounds_sample.0..y_bounds_sample.1);
-        }
-    } else if args.gaussian {
-        println!("Using gaussian sampling");
-
-        let n_points = 800;
-        let mean_x = 55.0 + offset_x;
-        let mean_y = 50.0 + offset_y;
-        let std_x = 16.0;
-        let std_y = 20.0;
-
-        data = Data {
-            x: vec![0.0; n_points],
-            y: vec![0.0; n_points],
-        };
-
-        // Sample n points using 2 Gaussians
-        // use a fixed seed for reproducibility
-        let mut rng = rand::rngs::StdRng::seed_from_u64(args.seed);
-
-        let normal_x = Normal::new(mean_x, std_x).unwrap();
-        let normal_y = Normal::new(mean_y, std_y).unwrap();
-
-        for i in 0..n_points {
-            let x = rng.sample::<f32, _>(normal_x);
-            let y = rng.sample::<f32, _>(normal_y);
-
-            // Clip the values to the bounds
-            let x = x.max(1.0 + offset_x).min(98.0 + offset_x);
-            let y = y.max(1.0 + offset_y).min(98.0 + offset_y);
-
-            data.x[i] = x;
-            data.y[i] = y;
-        }
-
-        // Print stats
-        let (mean_x, mean_y, std_x, std_y) = compute_stats(&data);
-        println!("Mean x: {}, Mean y: {}", mean_x, mean_y);
-        println!("Std x: {}, Std y: {}", std_x, std_y);
-
-        // let desired_std_y = 19.94;
-        // // Loop over the random seed until we get the desired std
-        // let mut seed = args.seed;
-        // let mut current_std_y = compute_stats(&data).3;
-
-        // while (current_std_y - desired_std_y).abs() > 0.005 {
-        //     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-
-        //     let normal_x = Normal::new(mean_x, std_x).unwrap();
-        //     let normal_y = Normal::new(mean_y, std_y).unwrap();
-
-        //     for i in 0..n_points {
-        //         let x = rng.sample::<f32, _>(normal_x);
-        //         let y = rng.sample::<f32, _>(normal_y);
-
-        //         // Clip the values to the bounds
-        //         let x = x.max(1.0 + offset_x).min(98.0 + offset_x);
-        //         let y = y.max(1.0 + offset_y).min(98.0 + offset_y);
-
-        //         data.x[i] = x;
-        //         data.y[i] = y;
-        //     }
-
-        //     current_std_y = compute_stats(&data).3;
-        //     println!("std_y: {}", current_std_y);
-        //     seed += 1;
-        // }
-        // println!("Seed: {}", seed);
-        // // Exit
-        // return;
-    } else {
-        data = read_data(args.dataset.as_str());
-    }
-
-    // Min/Max temperature
-    let min_temperature: f64 = args.min_temperature;
-    let max_temperature: f64 = args.max_temperature;
-
-    let decimals: i32 = args.decimals;
-
-    // Print info every n iterations
-    let log_interval = args.log_interval;
-    // For the plots, number of digits that change
-    let n_digits = args.n_digits;
-
-    let initial_data = Data {
-        x: data.x.clone(),
-        y: data.y.clone(),
-    };
-
-    // Do a copy of the initial data
-    let mut best_data = Data {
-        x: data.x.clone(),
-        y: data.y.clone(),
-    };
-
-    let mut fg = Figure::new();
-    let show_plot = args.plot;
-
-    // Create log directory if it doesn't exist
-    let log_folder = format!("./logs/{}", args.shape);
-
-    if !std::path::Path::new(&log_folder).exists() {
-        std::fs::create_dir_all(&log_folder).unwrap();
-    }
-
-    let fixed_lines = get_shape(args.shape.as_str(), offset_x, offset_y);
-
-    for i in tqdm!(0..num_iterations) {
-        // for i in 0..num_iterations {
-        // Compute the current temperature using a linear schedule
-        // let temperature = max_temperature
-        //     - (max_temperature - min_temperature) * (i as f64 / num_iterations as f64);
-
-        // Compute the current temperature using a quadratic schedule
-        let temperature = min_temperature
-            + (max_temperature - min_temperature)
-                * ease_in_out_quad((num_iterations - i) as f64 / num_iterations as f64);
-
-        // Perturb the data
-        data = perturb_data(
+    for iteration in tqdm!(0..args.num_iterations) {
+        let temperature = args.min_temperature
+            + (args.max_temperature - args.min_temperature)
+                * ease_in_out_quad(
+                    (args.num_iterations - iteration) as f64 / args.num_iterations as f64,
+                );
+        best_data = perturb_data(
             &best_data,
             temperature,
             args.allowed_distance,
             &fixed_lines,
             x_bounds,
             y_bounds,
+            &mut rng,
         );
-
-        // Check that after the perturbation the
-        // statistics of the data are still within the bounds
-        if is_error_still_ok(&data, &initial_data, decimals) {
-            best_data = Data {
-                x: data.x.clone(),
-                y: data.y.clone(),
-            };
+        let accepted = iteration + 1;
+        if args.project_every > 0 && accepted % args.project_every == 0 {
+            best_data = project_to_target_moments(&best_data, &initial_data)
+                .unwrap_or_else(|error| panic!("moment projection failed: {error}"));
         }
-
-        // Plot the data using gnuplot
-        if i % log_interval == 0 && show_plot {
-            fg.clear_axes();
-            // Display stats using labels
-            let stats = compute_stats(&best_data);
-
-            // retrieve the constant and variable part of the mean
-            let (mean_x, x_digits) = get_digits(stats.0, decimals, n_digits);
-
-            // Do the same for the other stats
-            let (mean_y, y_digits) = get_digits(stats.1, decimals, n_digits);
-            let (std_x, std_x_digits) = get_digits(stats.2, decimals, n_digits);
-            let (std_y, std_y_digits) = get_digits(stats.3, decimals, n_digits);
-
-            let n_decimals = decimals as usize;
-            let indent = 11 + (decimals as usize);
-
-            let label_x_pos = 0.32;
-            let label_y_pos = 0.95;
-
-            fg.axes2d()
-                .set_title("Datasaurust", &[])
-                .set_legend(Graph(0.5), Graph(0.9), &[], &[])
-                .set_x_label("X", &[])
-                .set_y_label("Y", &[])
-                // set max and min values for the axes
-                .set_x_range(Fix(x_bounds.0 as f64), Fix(x_bounds.1 as f64))
-                .set_y_range(Fix(y_bounds.0 as f64), Fix(y_bounds.1 as f64))
-                .points(
-                    best_data.x.iter(),
-                    best_data.y.iter(),
-                    // change the pointtype and pointsize and opacity
-                    &[
-                        Caption(""),
-                        gnuplot::PointSymbol('O'),
-                        gnuplot::PointSize(1.5),
-                        Color("black"),
-                    ],
-                    // &[Caption(""), Color("black")],
-                    // &[Caption("Best data"), Color("black")],
-                )
-                .label(
-                    format!("X Mean: {:.decimals$}", mean_x, decimals = n_decimals).as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("black")],
-                )
-                .label(
-                    format!(
-                        "{:indent$}{:0<n_digits$}",
-                        "",
-                        x_digits,
-                        indent = indent,
-                        n_digits = n_digits
-                    )
-                    .as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("grey")],
-                )
-                .label(
-                    format!("Y Mean: {:.decimals$}", mean_y, decimals = n_decimals).as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.06),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("black")],
-                )
-                .label(
-                    format!(
-                        "{:indent$}{:0<n_digits$}",
-                        "",
-                        y_digits,
-                        indent = indent,
-                        n_digits = n_digits
-                    )
-                    .as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.06),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("grey")],
-                )
-                .label(
-                    format!("X SD  : {:.decimals$}", std_x, decimals = n_decimals).as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.12),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("black")],
-                )
-                .label(
-                    format!(
-                        "{:indent$}{:0<n_digits$}",
-                        "",
-                        std_x_digits,
-                        indent = indent,
-                        n_digits = n_digits
-                    )
-                    .as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.12),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("grey")],
-                )
-                .label(
-                    format!("Y SD  : {:.decimals$}", std_y, decimals = n_decimals).as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.18),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("black")],
-                )
-                .label(
-                    format!(
-                        "{:indent$}{:0<n_digits$}",
-                        "",
-                        std_y_digits,
-                        indent = indent,
-                        n_digits = n_digits
-                    )
-                    .as_str(),
-                    Graph(label_x_pos),
-                    Graph(label_y_pos - 0.18),
-                    &[gnuplot::Font("Monospace", 16.), gnuplot::TextColor("grey")],
-                );
-
-            if args.save_plots {
-                let frame_idx: u32 = i / log_interval;
-                let frame_name = format!("{}/{:0>6}.png", log_folder, frame_idx);
-                fg.save_to_png(&frame_name, 640, 480).unwrap();
-            } else {
-                fg.show_and_keep_running().unwrap();
-            }
+        if (args.plot || args.save_plots) && iteration % args.log_interval == 0 {
+            let destination = args
+                .save_plots
+                .then(|| log_folder.join(format!("{:06}.png", iteration / args.log_interval)));
+            save_plot(
+                &mut figure,
+                &best_data,
+                compute_stats(&best_data),
+                (x_bounds, y_bounds),
+                args.decimals.max(0) as usize,
+                destination.as_deref(),
+            );
         }
-
-        // Print the data statistic every n iterations
-        // if i % log_interval == 0 {
-        //     let stats = compute_stats(&best_data);
-        //     println!(
-        //         "Iteration: {}, Temperature: {}, Mean: ({}, {}), Std: ({}, {})",
-        //         i, temperature, stats.0, stats.1, stats.2, stats.3,
-        //     );
-        // }
     }
 
-    // Write the best data to a csv file
-    let mut output = std::fs::File::create(format!("{}/{}.csv", log_folder, args.output)).unwrap();
-    for (x, y) in best_data.x.iter().zip(best_data.y.iter()) {
-        writeln!(output, "{},{}", x, y).unwrap();
+    best_data = project_to_target_moments(&best_data, &initial_data)
+        .unwrap_or_else(|error| panic!("final moment projection failed: {error}"));
+    let measured_stats = compute_stats(&best_data);
+    let target_stats = compute_stats(&initial_data);
+    let stats_error = max_stats_error(&best_data, &initial_data);
+    if !is_error_still_ok(&best_data, &initial_data, args.stats_tolerance) {
+        panic!(
+            "final statistics error {stats_error:e} exceeds tolerance {:e}",
+            args.stats_tolerance
+        );
     }
+    let contour_distance = mean_contour_distance(&best_data, &fixed_lines);
+    let contour_mse = mean_squared_contour_distance(&best_data, &fixed_lines);
+    if contour_distance > args.allowed_distance {
+        panic!(
+            "final mean contour distance {contour_distance} exceeds threshold {}",
+            args.allowed_distance
+        );
+    }
+
+    let output_path = log_folder.join(format!("{}.csv", args.output));
+    let mut output = std::fs::File::create(&output_path).unwrap();
+    for (&x, &y) in best_data.x.iter().zip(best_data.y.iter()) {
+        writeln!(output, "{x},{y}").unwrap();
+    }
+
+    if let Some(manifest_path) = &args.manifest_out {
+        if let Some(parent) = manifest_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let manifest = json!({
+            "schema_version": 1,
+            "status": "accepted",
+            "seed": args.seed,
+            "iterations": args.num_iterations,
+            "shape": {
+                "built_in": args.shape.as_deref().or(if args.shape_file.is_none() { Some("cat") } else { None }),
+                "file": args.shape_file,
+                "segments": fixed_lines.len(),
+            },
+            "points": {"path": output_path, "count": best_data.x.len()},
+            "target_stats": stats_json(target_stats),
+            "measured_stats": stats_json(measured_stats),
+            "max_stats_error": stats_error,
+            "stats_tolerance": args.stats_tolerance,
+            "project_every": args.project_every,
+            "shape_metrics": {
+                "mean_contour_distance": contour_distance,
+                "mean_squared_contour_distance": contour_mse,
+            },
+        });
+        std::fs::write(
+            manifest_path,
+            serde_json::to_string_pretty(&manifest).unwrap() + "\n",
+        )
+        .unwrap();
+    }
+
+    println!(
+        "accepted {} points: max stats error={stats_error:e}, mean contour distance={contour_distance:.6}",
+        best_data.x.len()
+    );
 }

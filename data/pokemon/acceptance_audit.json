@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "criteria": {
+    "one_command_acquisition": {
+      "passed": true,
+      "evidence": "scripts/generate_pokemon_dataset.py and data/pokemon/source_manifest.jsonl",
+      "sources": 5
+    },
+    "generic_extraction": {
+      "passed": true,
+      "evidence": "tests/test_pokemon_pipeline.py::test_all_configured_artworks_use_the_same_public_extractor and test_extractor_has_no_fixture_specific_literals"
+    },
+    "recognizable_dominant_masks_and_contours": {
+      "passed": true,
+      "evidence": "data/pokemon/contours/*.diagnostics.json and visual QA of five source/mask/contour previews",
+      "retained_subject_components_per_image": 1
+    },
+    "point_csv_contract": {
+      "passed": true,
+      "evidence": "data/pokemon/validation_summary.json",
+      "files": 640,
+      "rows_per_file": 142,
+      "headerless_and_finite": true
+    },
+    "shared_five_statistics": {
+      "passed": true,
+      "tolerance": 0.0001,
+      "maximum_error": 8.476774837617995e-12
+    },
+    "manifest_provenance": {
+      "passed": true,
+      "evidence": "data/pokemon/manifest.jsonl",
+      "accepted_entries": 640,
+      "records_seeds_hashes_measured_stats_and_code_config_versions": true
+    },
+    "byte_reproducibility": {
+      "passed": true,
+      "contour_and_point_aggregate_sha256_before": "1345f46a1362430604cfe356404d1e65915b45daa0214348ac7443db82ecb7b3",
+      "contour_and_point_aggregate_sha256_after": "1345f46a1362430604cfe356404d1e65915b45daa0214348ac7443db82ecb7b3",
+      "manifest_sha256_before": "f6c7aaa1d9e295d45ae3b9ea3901d42aff825784bbc6b1ab85ccba99f7e0a0f7",
+      "manifest_sha256_after": "f6c7aaa1d9e295d45ae3b9ea3901d42aff825784bbc6b1ab85ccba99f7e0a0f7"
+    },
+    "diffusion_input_rejection": {
+      "passed": true,
+      "evidence": "tests/test_pokemon_pipeline.py::test_diffusion_validator_rejects_mixed_point_counts_and_bad_stats"
+    },
+    "sample_artifacts_and_projection": {
+      "passed": true,
+      "evidence": "data/pokemon/diffusion_validation_summary.json and runs/pokemon_i1/samples",
+      "serialized_maximum_stats_error": 6.998845947236987e-12,
+      "coordinates_preview_metrics_and_blind_grid_written": true
+    },
+    "class_recognizability": {
+      "passed": true,
+      "required_accuracy": 0.6,
+      "balanced_blinded_grid_accuracy": 1.0,
+      "balanced_blinded_grid_correct": 25,
+      "balanced_blinded_grid_total": 25,
+      "heldout_nearest_reference_accuracy": 1.0,
+      "heldout_nearest_reference_correct": 40,
+      "heldout_nearest_reference_total": 40,
+      "exact_training_matches": 0
+    },
+    "heldout_sixth_artwork": {
+      "passed": true,
+      "evidence": "data/pokemon/heldout_validation.json",
+      "configuration_changed": false
+    }
+  },
+  "rust_contract": {
+    "runtime_shape_file_and_builtin_conflict": true,
+    "five_stat_compute_and_checks": true,
+    "single_seeded_rng": true,
+    "absolute_stats_tolerance": true,
+    "periodic_and_final_exact_projection": true,
+    "manifest_with_correlation": true,
+    "deterministic_cli_output_verified": true
+  },
+  "tests": {
+    "python_unittest": {"passed": 9, "failed": 0},
+    "rust_unittest": {"passed": 4, "failed": 0},
+    "cargo_fmt": "passed",
+    "cargo_clippy_warnings_denied": "passed",
+    "cargo_doc_warnings_denied": "passed"
+  }
+}

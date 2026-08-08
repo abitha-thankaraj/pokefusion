@@ -1,0 +1,22 @@
+{
+  "alpha_threshold": 16,
+  "component_count": 1,
+  "contours": 3,
+  "dominant_component_area": 70360,
+  "filled_holes": 0,
+  "foreground_fraction": 0.3118448753462604,
+  "height": 475,
+  "image_sha256": "b6d5b8ee9fb05dc6f53294b2cae660dec770b92762cdb19d16bcbd679e1ba43a",
+  "morphology_kernel": 3,
+  "retained_components": 1,
+  "schema_version": 1,
+  "segmentation": "alpha",
+  "touches_borders": {
+    "bottom": false,
+    "left": false,
+    "right": false,
+    "top": false
+  },
+  "vertices": 512,
+  "width": 475
+}

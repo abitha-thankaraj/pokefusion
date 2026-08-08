@@ -1,0 +1,38 @@
+{
+  "api_url": "https://pokeapi.co/api/v2/pokemon/7",
+  "asset_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png",
+  "config_sha256": "5ecb022e4891a11ef8c1862d201f56ef63d38a59004a1407b58373799d45fd80",
+  "contour_sha256": "5ed97de00b20e7b962e5522c0f9d4c80579e5af38fe4c45f35590cbed0b74017",
+  "diagnostics": {
+    "alpha_threshold": 16,
+    "component_count": 1,
+    "contours": 1,
+    "dominant_component_area": 95577,
+    "filled_holes": 0,
+    "foreground_fraction": 0.42360997229916897,
+    "height": 475,
+    "image_sha256": "37cda7bf8ad6f4252d539aed3bd989a85c8cb0f8e9d815be12bad08c16f31fe9",
+    "morphology_kernel": 3,
+    "retained_components": 1,
+    "schema_version": 1,
+    "segmentation": "alpha",
+    "touches_borders": {
+      "bottom": false,
+      "left": false,
+      "right": false,
+      "top": false
+    },
+    "vertices": 512,
+    "width": 475
+  },
+  "image_sha256": "37cda7bf8ad6f4252d539aed3bd989a85c8cb0f8e9d815be12bad08c16f31fe9",
+  "mask_foreground_fraction": 0.42360997229916897,
+  "pokemon": {
+    "form": "default",
+    "id": 7,
+    "name": "squirtle"
+  },
+  "schema_version": 1,
+  "sprite_field": "sprites.other.official-artwork.front_default",
+  "status": "accepted"
+}

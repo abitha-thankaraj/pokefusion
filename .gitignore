@@ -1,3 +1,12 @@
 /target
 logs/
 *.pkl
+
+# Pokémon source artwork is copyrighted and generated datasets/runs are local artifacts.
+data/pokemon/sources/
+data/pokemon/masks/
+data/pokemon/previews/
+data/pokemon/points/
+runs/
+__pycache__/
+*.pyc

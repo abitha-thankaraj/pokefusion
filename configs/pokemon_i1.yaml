@@ -1,0 +1,41 @@
+schema_version: 1
+global_seed: 20250807
+split_seed: 42
+
+pokemon:
+  - {id: 1, name: bulbasaur}
+  - {id: 25, name: pikachu}
+  - {id: 94, name: gengar}
+  - {id: 131, name: lapras}
+  - {id: 6, name: charizard}
+
+source_policy:
+  preferred: official-artwork
+  fallback: home
+  require_single_subject: true
+
+extraction:
+  alpha_threshold: 16
+  background_lab_distance: 18.0
+  morphology_fraction: 0.005
+  minimum_component_fraction: 0.001
+  detached_area_ratio: 0.02
+  detached_distance_fraction: 0.15
+  fill_hole_fraction: 0.0005
+  foreground_fraction_min: 0.02
+  foreground_fraction_max: 0.90
+  rdp_perimeter_fraction: 0.0015
+  contour_vertices: 512
+  minimum_vertices_per_contour: 8
+  canvas: [0.0, 100.0, 0.0, 100.0]
+  canvas_padding_fraction: 0.05
+
+generation:
+  points_per_sample: 142
+  samples_per_species: 16
+  jitter_std: 0.20
+  maximum_mean_contour_distance: 2.5
+  minimum_coverage: 0.70
+  coverage_bins: 32
+  stats_tolerance: 1.0e-4
+  maximum_attempts_per_sample: 20

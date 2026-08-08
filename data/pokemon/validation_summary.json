@@ -1,0 +1,29 @@
+{
+  "accepted_manifest_entries": 640,
+  "counts": {
+    "bulbasaur": 128,
+    "charizard": 128,
+    "gengar": 128,
+    "lapras": 128,
+    "pikachu": 128
+  },
+  "files": 640,
+  "max_abs_error": {
+    "corr": 5.943023850818463e-13,
+    "mean_x": 7.048583938740194e-12,
+    "mean_y": 8.476774837617995e-12,
+    "std_x": 8.288481012641569e-12,
+    "std_y": 7.311484750971431e-12
+  },
+  "points_per_file": 142,
+  "rejected_manifest_entries": 0,
+  "schema_version": 1,
+  "target_stats": {
+    "corr": -0.06447185270095165,
+    "mean_x": 54.26327323943664,
+    "mean_y": 47.832252816901374,
+    "std_x": 16.76514203911679,
+    "std_y": 26.935403486939123
+  },
+  "valid": true
+}

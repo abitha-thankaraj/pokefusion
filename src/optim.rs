@@ -3,222 +3,152 @@ use rand_distr::Normal;
 
 use crate::types::*;
 
-/// Compute the statistics of the data
-/// Returns the mean and standard deviation of x and y
-///
-/// # Example
-///
-/// ```
-/// use datasaurust::types::*;
-/// use datasaurust::optim::*;
-///
-/// let data = Data {
-///     x: vec![1.0, 2.0, 3.0, 4.0, 5.0],
-///     y: vec![1.0, 2.0, 3.0, 4.0, 5.0],
-/// };
-///
-/// let (mean_x, mean_y, std_x, std_y) = compute_stats(&data);
-/// assert_eq!(mean_x, 3.0);
-/// assert_eq!(mean_y, 3.0);
-/// ```
-pub fn compute_stats(data: &Data) -> (f32, f32, f32, f32) {
-    let mut mean_x = 0.0;
-    let mut mean_y = 0.0;
-    let mut std_x = 0.0;
-    let mut std_y = 0.0;
-
-    for i in 0..data.x.len() {
-        mean_x += data.x[i];
-        mean_y += data.y[i];
+/// Compute mean x/y, sample standard deviation x/y, and Pearson correlation.
+pub fn compute_stats(data: &Data) -> (f32, f32, f32, f32, f32) {
+    assert_eq!(data.x.len(), data.y.len(), "x/y length mismatch");
+    assert!(data.x.len() >= 2, "at least two points are required");
+    let n = data.x.len() as f64;
+    let mean_x = data.x.iter().map(|value| *value as f64).sum::<f64>() / n;
+    let mean_y = data.y.iter().map(|value| *value as f64).sum::<f64>() / n;
+    let mut variance_x = 0.0_f64;
+    let mut variance_y = 0.0_f64;
+    let mut covariance = 0.0_f64;
+    for (&x, &y) in data.x.iter().zip(data.y.iter()) {
+        let centered_x = x as f64 - mean_x;
+        let centered_y = y as f64 - mean_y;
+        variance_x += centered_x * centered_x;
+        variance_y += centered_y * centered_y;
+        covariance += centered_x * centered_y;
     }
-
-    mean_x /= data.x.len() as f32;
-    mean_y /= data.y.len() as f32;
-
-    for i in 0..data.x.len() {
-        std_x += (data.x[i] - mean_x).powi(2);
-        std_y += (data.y[i] - mean_y).powi(2);
-    }
-
-    // unbiased estimator of the variance
-    // use n instead of n-1 to have biased estimator
-    std_x = (std_x / (data.x.len() - 1) as f32).sqrt();
-    std_y = (std_y / (data.y.len() - 1) as f32).sqrt();
-
-    (mean_x, mean_y, std_x, std_y)
+    let denominator = n - 1.0;
+    let std_x = (variance_x / denominator).sqrt();
+    let std_y = (variance_y / denominator).sqrt();
+    let correlation = covariance / denominator / (std_x * std_y);
+    (
+        mean_x as f32,
+        mean_y as f32,
+        std_x as f32,
+        std_y as f32,
+        correlation as f32,
+    )
 }
 
-/// Get the part that doesn't change in the number (until decimals)
-/// and the one that does (after decimals)
-///
-/// # Example
-///
-/// ```
-/// use datasaurust::types::*;
-/// use datasaurust::optim::*;
-///
-/// let (constant_part, variable_part) = get_digits(21.2345, 2, 2);
-/// assert_eq!(constant_part, 21.23);
-/// assert_eq!(variable_part, 45);
-/// ```
 pub fn get_digits(number: f32, decimals: i32, n_digits: usize) -> (f32, i32) {
     let constant_part = number * 10.0_f32.powi(decimals);
     let constant_part = constant_part.floor() / 10.0_f32.powi(decimals);
     let variable_part = number - constant_part;
     let variable_part = variable_part * 10.0_f32.powi(decimals + n_digits as i32);
-    let digits = variable_part.floor();
-    (constant_part, digits as i32)
+    (constant_part, variable_part.floor() as i32)
 }
 
-/// Check if the error is within the acceptable bounds
-///
-/// # Example
-///
-/// ```
-/// use datasaurust::types::*;
-/// use datasaurust::optim::*;
-///
-/// let stat1 = 21.2345;
-/// let stat2 = 21.2346;
-/// let decimals = 2;
-/// let ok = is_error_within_tolerance(stat1, stat2, decimals);
-/// assert_eq!(ok, true);
-/// let stat1 = 21.231;
-/// let stat2 = 21.241;
-/// let decimals = 2;
-/// let ok = is_error_within_tolerance(stat1, stat2, decimals);
-/// assert_eq!(ok, false);
-/// ```
-pub fn is_error_within_tolerance(stat1: f32, stat2: f32, decimals: i32) -> bool {
-    // Floor first to avoid rounding issue when computing the difference
-    let stat1 = (stat1 * 10.0_f32.powi(decimals)).floor();
-    let stat2 = (stat2 * 10.0_f32.powi(decimals)).floor();
-    let diff = (stat1 - stat2).abs();
-    diff == 0.0
+/// Compare all five statistics with a full-precision absolute tolerance.
+pub fn is_error_still_ok(data: &Data, target: &Data, tolerance: f32) -> bool {
+    let measured = compute_stats(data);
+    let expected = compute_stats(target);
+    [
+        (measured.0 - expected.0).abs(),
+        (measured.1 - expected.1).abs(),
+        (measured.2 - expected.2).abs(),
+        (measured.3 - expected.3).abs(),
+        (measured.4 - expected.4).abs(),
+    ]
+    .into_iter()
+    .all(|error| error <= tolerance)
 }
 
-/// Checks to see if the statistics are still within the acceptable bounds
-pub fn is_error_still_ok(data1: &Data, data2: &Data, decimals: i32) -> bool {
-    let (mean_x1, mean_y1, std_x1, std_y1) = compute_stats(data1);
-    let (mean_x2, mean_y2, std_x2, std_y2) = compute_stats(data2);
-
-    let mean_x_ok = is_error_within_tolerance(mean_x1, mean_x2, decimals);
-    let mean_y_ok = is_error_within_tolerance(mean_y1, mean_y2, decimals);
-    let std_x_ok = is_error_within_tolerance(std_x1, std_x2, decimals);
-    let std_y_ok = is_error_within_tolerance(std_y1, std_y2, decimals);
-
-    mean_x_ok && mean_y_ok && std_x_ok && std_y_ok
+pub fn max_stats_error(data: &Data, target: &Data) -> f32 {
+    let measured = compute_stats(data);
+    let expected = compute_stats(target);
+    [
+        (measured.0 - expected.0).abs(),
+        (measured.1 - expected.1).abs(),
+        (measured.2 - expected.2).abs(),
+        (measured.3 - expected.3).abs(),
+        (measured.4 - expected.4).abs(),
+    ]
+    .into_iter()
+    .fold(0.0, f32::max)
 }
 
-/// Calculate the minimum distance between a point and a line segment
-///
-/// # Example
-///
-/// ```
-/// use datasaurust::types::*;
-/// use datasaurust::optim::*;
-///
-/// let point = (0.0, 0.0);
-/// let line = ((1.0, 1.0), (2.0, 2.0));
-/// let distance = min_distance_segment(point, line);
-/// assert_eq!(distance, 1.4142135);
-/// ```
 pub fn min_distance_segment(point: (f32, f32), line: Line) -> f32 {
-    let (x1, y1) = line.0;
-    let (x2, y2) = line.1;
-    let (x0, y0) = point;
-
-    // Calculate the distance between the point and the line
-    let numerator = ((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1).abs();
-    let denominator = ((y2 - y1).powi(2) + (x2 - x1).powi(2)).sqrt();
-
-    // If the point is outside the line segment, return the distance to the closest endpoint
-    let distance = numerator / denominator;
-
-    let (x1, y1) = line.0;
-    let (x2, y2) = line.1;
-    let (x0, y0) = point;
-
-    let x1x0 = x1 - x0;
-    let x2x0 = x2 - x0;
-    let y1y0 = y1 - y0;
-    let y2y0 = y2 - y0;
-
-    // If the point is inside the line segment, return the distance to the line
-    if x1x0 * x2x0 < 0.0 || y1y0 * y2y0 < 0.0 {
-        return distance;
+    let (start, end) = line;
+    let direction = (end.0 - start.0, end.1 - start.1);
+    let length_squared = direction.0 * direction.0 + direction.1 * direction.1;
+    if length_squared == 0.0 {
+        return ((point.0 - start.0).powi(2) + (point.1 - start.1).powi(2)).sqrt();
     }
-
-    // If the point is outside the line segment, return the distance to the closest endpoint
-    let d1 = (x1x0.powi(2) + y1y0.powi(2)).sqrt();
-    let d2 = (x2x0.powi(2) + y2y0.powi(2)).sqrt();
-
-    if d1 < d2 {
-        d1
-    } else {
-        d2
-    }
+    let projection =
+        ((point.0 - start.0) * direction.0 + (point.1 - start.1) * direction.1) / length_squared;
+    let t = projection.clamp(0.0, 1.0);
+    let closest = (start.0 + t * direction.0, start.1 + t * direction.1);
+    ((point.0 - closest.0).powi(2) + (point.1 - closest.1).powi(2)).sqrt()
 }
 
-// This function does one round of perturbation
-// using simulated annealing
-pub fn perturb_data(
+pub fn mean_contour_distance(data: &Data, fixed_lines: &[Line]) -> f32 {
+    let total = data
+        .x
+        .iter()
+        .zip(data.y.iter())
+        .map(|(&x, &y)| {
+            fixed_lines
+                .iter()
+                .map(|line| min_distance_segment((x, y), *line))
+                .fold(f32::INFINITY, f32::min)
+        })
+        .sum::<f32>();
+    total / data.x.len() as f32
+}
+
+pub fn mean_squared_contour_distance(data: &Data, fixed_lines: &[Line]) -> f32 {
+    let total = data
+        .x
+        .iter()
+        .zip(data.y.iter())
+        .map(|(&x, &y)| {
+            let distance = fixed_lines
+                .iter()
+                .map(|line| min_distance_segment((x, y), *line))
+                .fold(f32::INFINITY, f32::min);
+            distance * distance
+        })
+        .sum::<f32>();
+    total / data.x.len() as f32
+}
+
+/// One shape-objective perturbation. All random choices use the caller's RNG.
+pub fn perturb_data<R: Rng + ?Sized>(
     data: &Data,
     temperature: f64,
     allowed_distance: f32,
     fixed_lines: &[Line],
     x_bounds: (f32, f32),
     y_bounds: (f32, f32),
+    rng: &mut R,
 ) -> Data {
-    // Create a new data struct to store the perturbed data
-    let mut new_data = Data {
-        x: data.x.clone(),
-        y: data.y.clone(),
-    };
-
-    // Standard deviation for the gaussian noise
-    let std_dev = 0.1;
-
-    // Choose a random point to perturb
-    let index: usize = rand::thread_rng().gen_range(0..data.x.len());
-
-    // This is the simulated annealing step
-    // Allow the point to move further away from the line
-    // if the temperature is high
-    let allow_worse_objective = rand::thread_rng().gen_bool(temperature);
-
-    // Compute the distance too all segments and
-    // find the minimum distance
-    let min_distance_old = fixed_lines
+    assert!(
+        !fixed_lines.is_empty(),
+        "at least one contour segment is required"
+    );
+    let mut new_data = data.clone();
+    let index = rng.gen_range(0..data.x.len());
+    let allow_worse_objective = rng.gen_bool(temperature.clamp(0.0, 1.0));
+    let old_distance = fixed_lines
         .iter()
-        .map(|line| min_distance_segment((new_data.x[index], new_data.y[index]), *line))
-        .fold(f32::INFINITY, |acc, x| acc.min(x));
-
-    let normal = Normal::new(0.0, std_dev).unwrap();
-
+        .map(|line| min_distance_segment((data.x[index], data.y[index]), *line))
+        .fold(f32::INFINITY, f32::min);
+    let normal = Normal::new(0.0, 0.1).unwrap();
     loop {
-        // perturb the x and y coordinates of the point
-        // using gaussian noise
-        let delta_x = rand::thread_rng().sample::<f32, _>(normal);
-        let delta_y = rand::thread_rng().sample::<f32, _>(normal);
-
-        let x = new_data.x[index] + delta_x;
-        let y = new_data.y[index] + delta_y;
-
-        // Compute min distance for the new point
-        let min_distance_new = fixed_lines
+        let x = data.x[index] + rng.sample::<f32, _>(normal);
+        let y = data.y[index] + rng.sample::<f32, _>(normal);
+        let new_distance = fixed_lines
             .iter()
             .map(|line| min_distance_segment((x, y), *line))
-            .fold(f32::INFINITY, |acc, x| acc.min(x));
-
-        let in_bounds = x >= x_bounds.0 && x <= x_bounds.1 && y >= y_bounds.0 && y <= y_bounds.1;
-        // Check if the new point is close enough to the line
-        let close_enough = min_distance_new < allowed_distance;
-
-        // Check if the new distance is smaller than the old distance
-        // or if the temperature is high enough to allow worse objective
-        if (min_distance_new < min_distance_old || allow_worse_objective || close_enough)
-            && in_bounds
+            .fold(f32::INFINITY, f32::min);
+        let in_bounds = x_bounds.0 <= x && x <= x_bounds.1 && y_bounds.0 <= y && y <= y_bounds.1;
+        if in_bounds
+            && (new_distance < old_distance
+                || allow_worse_objective
+                || new_distance < allowed_distance)
         {
             new_data.x[index] = x;
             new_data.y[index] = y;
@@ -227,60 +157,185 @@ pub fn perturb_data(
     }
 }
 
-// Function that reads the data from the csv file
-pub fn read_data(filename: &str) -> Data {
-    // Parse the csv file
-    let input = std::fs::read_to_string(filename).unwrap();
-
-    let initial_data = input
-        .lines()
-        .map(|line| {
-            let mut iter = line.split(',');
-            let x = iter.next().unwrap().parse::<f32>().unwrap();
-            let y = iter.next().unwrap().parse::<f32>().unwrap();
-            (x, y)
-        })
-        .collect::<Vec<(f32, f32)>>();
-
-    // Convert the data into a Data struct
-    Data {
-        x: initial_data.iter().map(|(x, _)| *x).collect(),
-        y: initial_data.iter().map(|(_, y)| *y).collect(),
+fn covariance(data: &Data) -> ([f64; 2], [[f64; 2]; 2]) {
+    let n = data.x.len() as f64;
+    let mean = [
+        data.x.iter().map(|value| *value as f64).sum::<f64>() / n,
+        data.y.iter().map(|value| *value as f64).sum::<f64>() / n,
+    ];
+    let mut covariance = [[0.0; 2]; 2];
+    for (&x, &y) in data.x.iter().zip(data.y.iter()) {
+        let centered = [x as f64 - mean[0], y as f64 - mean[1]];
+        covariance[0][0] += centered[0] * centered[0];
+        covariance[0][1] += centered[0] * centered[1];
+        covariance[1][1] += centered[1] * centered[1];
     }
-
-    // Create a new plot using gnuplot
-    // let mut fg = Figure::new();
-    // fg.axes2d()
-    //     .set_title("Datasaurus", &[])
-    //     .set_legend(Graph(0.5), Graph(0.9), &[], &[])
-    //     .set_x_label("X", &[])
-    //     .set_y_label("Y", &[])
-    //     .points(
-    //         initial_data.iter().map(|(x, _)| *x),
-    //         initial_data.iter().map(|(_, y)| *y),
-    //         &[Caption("Initial data"), Color("black")],
-    //     );
-    // fg.show().unwrap();
+    let denominator = n - 1.0;
+    covariance[0][0] /= denominator;
+    covariance[0][1] /= denominator;
+    covariance[1][0] = covariance[0][1];
+    covariance[1][1] /= denominator;
+    (mean, covariance)
 }
 
-/// Port from pytweening
-/// A quadratic tween function that accelerates, reaches the midpoint, and then decelerates.
-/// a "s-shaped" curve
-///
-/// # Example
-///
-/// ```
-/// use datasaurust::optim::ease_in_out_quad;
-///
-/// assert_eq!(ease_in_out_quad(0.0), 0.0);
-/// assert_eq!(ease_in_out_quad(0.5), 0.5);
-/// assert_eq!(ease_in_out_quad(1.0), 1.0);
-/// ```
+fn symmetric_power(matrix: [[f64; 2]; 2], power: f64) -> Result<[[f64; 2]; 2], String> {
+    let angle = 0.5 * (2.0 * matrix[0][1]).atan2(matrix[0][0] - matrix[1][1]);
+    let (sine, cosine) = angle.sin_cos();
+    let lambda_1 = cosine * cosine * matrix[0][0]
+        + 2.0 * sine * cosine * matrix[0][1]
+        + sine * sine * matrix[1][1];
+    let lambda_2 = sine * sine * matrix[0][0] - 2.0 * sine * cosine * matrix[0][1]
+        + cosine * cosine * matrix[1][1];
+    if lambda_1 <= 1e-12 || lambda_2 <= 1e-12 || !lambda_1.is_finite() || !lambda_2.is_finite() {
+        return Err(format!(
+            "rank-deficient covariance eigenvalues: {lambda_1}, {lambda_2}"
+        ));
+    }
+    let p1 = lambda_1.powf(power);
+    let p2 = lambda_2.powf(power);
+    Ok([
+        [
+            cosine * cosine * p1 + sine * sine * p2,
+            sine * cosine * (p1 - p2),
+        ],
+        [
+            sine * cosine * (p1 - p2),
+            sine * sine * p1 + cosine * cosine * p2,
+        ],
+    ])
+}
+
+fn multiply(left: [[f64; 2]; 2], right: [[f64; 2]; 2]) -> [[f64; 2]; 2] {
+    [
+        [
+            left[0][0] * right[0][0] + left[0][1] * right[1][0],
+            left[0][0] * right[0][1] + left[0][1] * right[1][1],
+        ],
+        [
+            left[1][0] * right[0][0] + left[1][1] * right[1][0],
+            left[1][0] * right[0][1] + left[1][1] * right[1][1],
+        ],
+    ]
+}
+
+fn projection_pass(
+    data: &Data,
+    target_mean: [f64; 2],
+    target_cov: [[f64; 2]; 2],
+) -> Result<Data, String> {
+    let (mean, source_cov) = covariance(data);
+    let transform = multiply(
+        symmetric_power(source_cov, -0.5)?,
+        symmetric_power(target_cov, 0.5)?,
+    );
+    let mut result = Data {
+        x: Vec::with_capacity(data.x.len()),
+        y: Vec::with_capacity(data.y.len()),
+    };
+    for (&x, &y) in data.x.iter().zip(data.y.iter()) {
+        let centered = [x as f64 - mean[0], y as f64 - mean[1]];
+        result.x.push(
+            (centered[0] * transform[0][0] + centered[1] * transform[1][0] + target_mean[0]) as f32,
+        );
+        result.y.push(
+            (centered[0] * transform[0][1] + centered[1] * transform[1][1] + target_mean[1]) as f32,
+        );
+    }
+    Ok(result)
+}
+
+/// Analytically project data to the target sample mean and covariance.
+pub fn project_to_target_moments(data: &Data, target: &Data) -> Result<Data, String> {
+    let (target_mean, target_cov) = covariance(target);
+    let first = projection_pass(data, target_mean, target_cov)?;
+    projection_pass(&first, target_mean, target_cov)
+}
+
+pub fn read_data(filename: &str) -> Data {
+    let input = std::fs::read_to_string(filename).unwrap();
+    let points = input
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let mut fields = line.split(',');
+            let x = fields.next().unwrap().parse::<f32>().unwrap();
+            let y = fields.next().unwrap().parse::<f32>().unwrap();
+            (x, y)
+        })
+        .collect::<Vec<_>>();
+    Data {
+        x: points.iter().map(|point| point.0).collect(),
+        y: points.iter().map(|point| point.1).collect(),
+    }
+}
+
 pub fn ease_in_out_quad(t: f64) -> f64 {
     if t < 0.5 {
         2.0 * t.powi(2)
     } else {
-        let tmp = t * 2.0 - 1.0;
-        -0.5 * (tmp * (tmp - 2.0) - 1.0)
+        let value = t * 2.0 - 1.0;
+        -0.5 * (value * (value - 2.0) - 1.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+
+    #[test]
+    fn stats_include_sample_correlation() {
+        let data = Data {
+            x: vec![1.0, 2.0, 3.0, 4.0, 5.0],
+            y: vec![2.0, 4.0, 6.0, 8.0, 10.0],
+        };
+        let stats = compute_stats(&data);
+        assert_eq!(stats.0, 3.0);
+        assert_eq!(stats.1, 6.0);
+        assert!((stats.4 - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn projection_matches_all_five_target_stats() {
+        let target = Data {
+            x: vec![1.0, 2.0, 4.0, 7.0, 8.0, 9.0],
+            y: vec![8.0, 4.0, 7.0, 2.0, 3.0, 9.0],
+        };
+        let candidate = Data {
+            x: vec![-2.0, 0.5, 1.0, 3.5, 8.0, 12.0],
+            y: vec![1.0, 7.0, -3.0, 4.0, 10.0, 2.0],
+        };
+        let projected = project_to_target_moments(&candidate, &target).unwrap();
+        assert!(max_stats_error(&projected, &target) < 1e-5);
+    }
+
+    #[test]
+    fn perturbations_are_seed_reproducible() {
+        let data = Data {
+            x: vec![0.0, 1.0, 2.0],
+            y: vec![0.0, 1.0, 0.0],
+        };
+        let lines = vec![((-10.0, 0.0), (10.0, 0.0))];
+        let mut first = rand::rngs::StdRng::seed_from_u64(9);
+        let mut second = rand::rngs::StdRng::seed_from_u64(9);
+        let a = perturb_data(
+            &data,
+            0.2,
+            1.0,
+            &lines,
+            (-20.0, 20.0),
+            (-20.0, 20.0),
+            &mut first,
+        );
+        let b = perturb_data(
+            &data,
+            0.2,
+            1.0,
+            &lines,
+            (-20.0, 20.0),
+            (-20.0, 20.0),
+            &mut second,
+        );
+        assert_eq!(a, b);
     }
 }
