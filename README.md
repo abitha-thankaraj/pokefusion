@@ -1,106 +1,229 @@
-![CI](https://github.com/araffin/datasaurust/workflows/CI/badge.svg)
+# DatasauRust Pokémon
 
-# DatasauRust
+[![CI](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml/badge.svg)](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml)
 
-Blazingly fast implementation of the [Datasaurus](https://www.autodesk.com/research/publications/same-stats-different-graphs) paper (500x faster than the original): "Same Stats, Different Graphs: Generating Datasets with Varied Appearance and Identical Statistics through Simulated Annealing" by Justin Matejka and George Fitzmaurice.
+This repository extends [DatasauRust](https://github.com/araffin/datasaurust)
+with a reproducible pipeline that turns official Pokémon artwork into 142-point
+silhouettes and trains a class-conditional point-cloud diffusion model on them.
 
+Every accepted cloud has the same full-precision mean, sample standard
+deviations, and Pearson correlation as the original Datasaurus dataset. The
+model learns shape from coordinates only; raster images are used for source
+extraction and visual evaluation, never as training inputs.
 
-https://user-images.githubusercontent.com/1973948/230972049-adcb8012-f25f-4df4-84ce-aafc7f58f184.mp4
+## Denoising examples
 
+Each animation starts from Gaussian noise and shows the actual 200-step reverse
+DDPM trajectory. The final frame is projected back to the exact target moments.
 
+| Bulbasaur | Charizard | Gengar | Lapras | Pikachu |
+|---|---|---|---|---|
+| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](docs/examples/denoising_gifs/pikachu_denoising.gif) |
 
+## Repository map
 
-## Usage
-
-To run with plot `-p` (using gnuplot):
-```
-cargo run --release -- -d data/seed_datasets/Datasaurus_data.csv -p
-```
-
-With pre-defined shape:
-```
-cargo run --release -- -p -n 3000000 --decimals 2 --shape cat --allowed-distance 0.1
-```
-
-Starting from Gaussian noise:
-```
-cargo run --release -- -p -n 3000000 --decimals 2 --shape cat --allowed-distance 0.1 --gaussian
-```
-
-## Create videos
-
-Create video and gif (use `--save-plot`):
-```
-pip install moviepy ffmpeg-python
-
-python scripts/create_video.py logs/cat/ logs/cat.mp4
-```
-
-From one shape to another:
-```
-cargo run --release -- -p -n 2000000 --decimals 1 --shape dog --allowed-distance 0.1 --log-interval 10000 -d logs/gaussian_cat/output.csv --save-plots
+```text
+scripts/pokefusion/configs/                runnable OmegaConf experiment YAMLs
+scripts/pokefusion/data/                   acquire, extract, generate, and validate
+scripts/pokefusion/train/                  train, check, sample, and evaluate DDPM
+scripts/pokefusion/visualize/              render one denoising GIF per class
+scripts/pokefusion/pyproject.toml          isolated uv environment definition
+scripts/pokefusion/datasaurust_changelist.md  Rust extension notes and rationale
+data/pokemon/contours/                  versioned deterministic contour artifacts
+data/pokemon/manifest.jsonl             dataset provenance and acceptance records
+data/pokemon/points/<species>/*.csv     generated 142 × 2 training examples
+runs/<name>/                            checkpoints, samples, metrics, and GIFs
 ```
 
+Large generated artifacts under `data/pokemon/points/` and `runs/` are ignored
+by Git. Small contours, manifests, validation summaries, and documentation
+examples are versioned.
 
-Note: The original datasets and python code comes from http://www.autodeskresearch.com/papers/samestats
+`scripts/pokefusion/` is a self-contained Python subproject. It installs the
+`pokefusion` import package and does not require `scripts` to be a Python
+package or appear in application imports.
 
-## Pokémon point-cloud pipeline
+## 1. Set up Python with uv
 
-Iteration 1 adds a species-agnostic path from official transparent artwork to
-class-conditional, fixed-moment 2D point clouds. The extractor receives image
-bytes and one global configuration; it contains no Pokémon IDs, names, masks,
-thresholds, or coordinates. Every generated CSV has 142 headerless `x,y` rows
-and is analytically projected to the full-precision mean, sample covariance,
-standard deviations, and Pearson correlation of
-`data/seed_datasets/Datasaurus_data.csv`.
-
-Python 3.10+ dependencies are `numpy`, `scipy`, `Pillow`, `requests`,
-`PyYAML`, `contourpy`, `matplotlib`, and `torch`. Use an existing environment
-that provides them. The pipeline itself does not create or mutate an
-environment.
-
-Acquire the five configured artworks, record source metadata, extract the same
-generic contours, save QA previews, and generate the 5 × 16 smoke dataset with
-one command:
+Requirements are Python 3.10–3.14 and
+[`uv`](https://docs.astral.sh/uv/getting-started/installation/). From a clone of
+this repository:
 
 ```bash
-python scripts/generate_pokemon_dataset.py \
-  --config configs/pokemon_i1.yaml \
-  --samples-per-species 16
+uv sync --project scripts/pokefusion
+uv run --project scripts/pokefusion python -c \
+  "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
 ```
 
-Generate the first training volume and validate every file and manifest hash:
+`uv sync` creates an isolated environment for the Python subproject and installs
+the dependencies declared in `scripts/pokefusion/pyproject.toml`. For a
+platform-specific CUDA or ROCm build, select the wheel
+recommended by the official [PyTorch installer](https://pytorch.org/get-started/locally/).
+CPU execution works for data generation and small smoke tests; training is much
+faster on a GPU.
+
+The Rust CLI is optional for the Python diffusion workflow. To use it, install a
+stable Rust toolchain and run `cargo test` once.
+
+## 2. Choose any Pokémon
+
+Copy the supplied configuration and replace its `pokemon` list. Adding a new
+species requires only its lowercase PokéAPI name—no ID lookup, species-specific
+mask, threshold, contour, or code change.
 
 ```bash
-python scripts/generate_pokemon_dataset.py \
-  --config configs/pokemon_i1.yaml \
-  --samples-per-species 128
-python scripts/validate_pokemon_dataset.py \
-  --config configs/pokemon_i1.yaml
+cp scripts/pokefusion/configs/data/five_pokemon.yaml \
+  scripts/pokefusion/configs/data/my_pokemon.yaml
 ```
 
-Exercise the unchanged extractor on a PokéAPI ID that is absent from the
-training manifest:
+For example:
+
+```yaml
+pokemon:
+  - squirtle
+  - eevee
+  - snorlax
+```
+
+Keep the shared `source_policy`, `extraction`, and `generation` sections from
+the original configuration. The generic extractor prefers transparent official
+artwork and falls back to the PokéAPI Home sprite.
+PokéAPI resolves each name and supplies the canonical numeric ID recorded in
+the source manifest and deterministic sample seeds.
+
+## 3. Acquire artwork and generate point clouds
+
+Every Pokémon command takes a YAML path followed by optional OmegaConf dot-list
+overrides. Run the configured 16-example-per-class dataset first:
 
 ```bash
-python scripts/check_heldout_pokemon.py \
-  --pokemon-id 7 \
-  --out data/pokemon/heldout_validation.json
+uv run --project scripts/pokefusion python \
+  -m pokefusion.data.generate_pokemon_dataset \
+  scripts/pokefusion/configs/data/my_pokemon.yaml
+
+uv run --project scripts/pokefusion python \
+  -m pokefusion.data.validate_pokemon_dataset \
+  scripts/pokefusion/configs/data/my_pokemon.yaml
 ```
 
-Source artwork, masks, point clouds, previews, checkpoints, and sampled runs are
-ignored by Git. The small deterministic contour artifacts, source metadata,
-generation manifest, and validation summary are versioned. The source metadata
-contains the Pokémon Company rights notice; do not infer commercial image
-redistribution rights from the PokeAPI sprites repository license.
+The generation command performs the complete data path:
 
-### Runtime contours in Rust
+1. fetches the configured PokéAPI records and official artwork;
+2. records URLs, hashes, HTTP metadata, dimensions, and rights information;
+3. extracts every silhouette through the same generic function;
+4. writes masks, deterministic contours, and source/mask/contour QA previews;
+5. creates headerless 142-row coordinate CSVs with exact shared moments; and
+6. records seeds, hashes, measured statistics, shape metrics, and code/config
+   versions in `data/pokemon/manifest.jsonl`.
 
-Use a generated contour CSV instead of a built-in shape. `--shape` and
-`--shape-file` are mutually exclusive. All optimizer random choices share
-`--seed`; full moments are reprojected every `--project-every` accepted moves
-and once at the end. `--stats-tolerance` is an absolute full-precision check,
-not a rounded display comparison.
+Inspect `data/pokemon/previews/<name>.png` before scaling up. Then generate the
+recommended first training volume:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.data.generate_pokemon_dataset \
+  scripts/pokefusion/configs/data/my_pokemon.yaml \
+  generation.samples_per_species=128
+
+uv run --project scripts/pokefusion python \
+  -m pokefusion.data.validate_pokemon_dataset \
+  scripts/pokefusion/configs/data/my_pokemon.yaml
+```
+
+To test the unchanged extractor on a Pokémon absent from the training config:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.data.check_heldout_pokemon \
+  scripts/pokefusion/configs/data/my_pokemon.yaml \
+  heldout.pokemon_id=25 \
+  heldout.out=data/pokemon/heldout_validation.json
+```
+
+## 4. Train the diffusion model
+
+First make the model validate every training file, point count, and invariant:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.train.check \
+  scripts/pokefusion/configs/train/baseline.yaml
+```
+
+Run the 30,000-step baseline:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.train.train \
+  scripts/pokefusion/configs/train/baseline.yaml
+```
+
+Training uses an 80/10/10 stratified split, randomizes point order on every
+access, whitens the shared covariance, predicts DDPM noise with a
+permutation-equivariant Transformer, and saves EMA weights in
+`runs/five_pokemon/checkpoint.pt`.
+
+The training implementation follows the small, explicit style of
+[tiny-diffusion](https://github.com/tanelp/tiny-diffusion): `data.py` owns the
+statistical contract and whitening, `model.py` defines the denoiser,
+`diffusion.py` writes out the forward and reverse equations, and `train.py`
+contains the complete optimization loop. Comments explain the less obvious
+choices, especially covariance, correlation, projection, and point-order
+invariance.
+
+For a fast end-to-end smoke test, use fewer steps and a smaller model:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.train.train \
+  scripts/pokefusion/configs/train/baseline.yaml \
+  out=runs/setup_check \
+  training.steps=200 \
+  training.model_width=32 \
+  training.model_layers=1 \
+  training.diffusion_timesteps=20
+```
+
+## 5. Sample and evaluate
+
+Generate eight point clouds per class:
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.train.sample \
+  scripts/pokefusion/configs/sample/eight_per_class.yaml
+```
+
+The sampler writes coordinate CSVs, a labeled preview, a balanced blinded grid
+and key, `metrics.json`, nearest-reference distances, diversity, and exact
+training-match checks. Every serialized sample is reprojected and revalidated
+against all five target statistics.
+
+## 6. Render one denoising GIF per Pokémon
+
+```bash
+uv run --project scripts/pokefusion python \
+  -m pokefusion.visualize.render_diffusion_gifs \
+  scripts/pokefusion/configs/visualize/denoising_gifs.yaml
+```
+
+Useful controls:
+
+```text
+seed=321          reproducible initial noise and reverse trajectory
+frame_stride=4    save every fourth denoising step
+fps=12            output playback speed
+device=auto       select CUDA, MPS, or CPU automatically
+```
+
+The output directory contains `<species>_denoising.gif` for every class stored
+in the checkpoint.
+
+## Rust runtime contours
+
+The Rust optimizer accepts either a built-in shape or a generated runtime
+contour. All optimizer randomness shares one seed, and final acceptance checks
+the five full-precision statistics plus contour distance.
 
 ```bash
 cargo run --release -- \
@@ -111,44 +234,31 @@ cargo run --release -- \
   --manifest-out logs/pikachu/manifest.json
 ```
 
-### Diffusion baseline
+The Rust-specific changes are listed with their rationale in
+[`scripts/pokefusion/datasaurust_changelist.md`](scripts/pokefusion/datasaurust_changelist.md).
 
-The model trains only on point coordinates. It whitens the shared target
-covariance, permutes rows on every training access, uses a
-permutation-equivariant Transformer without point-index embeddings, predicts
-DDPM noise, and samples through the EMA model.
+## Verification
 
 ```bash
-python pokemon_point_diffusion.py check \
-  --data-dir data/pokemon/points
-python pokemon_point_diffusion.py train \
-  --data-dir data/pokemon/points \
-  --out runs/pokemon_i1 \
-  --steps 30000
-python pokemon_point_diffusion.py sample \
-  --checkpoint runs/pokemon_i1/checkpoint.pt \
-  --out runs/pokemon_i1/samples \
-  --per-class 8
+uv run --project scripts/pokefusion python \
+  -m pokefusion.train.check \
+  scripts/pokefusion/configs/train/baseline.yaml
+cargo fmt --all --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-targets --all-features
 ```
 
-Sampling writes one coordinate CSV per generated cloud, `metrics.json`, a
-class-labeled preview, a randomized 5 × 5 blinded preview, and its separate key.
-All saved samples are reprojected to the exact target moments.
+## Reproducibility and image rights
 
-Render one reusable reverse-diffusion GIF per class from a trained checkpoint:
+Seeds are derived deterministically from the global seed, Pokémon ID, sample
+index, and attempt. Re-running with unchanged input bytes, configuration, and
+code produces byte-identical contours, point CSVs, and manifests.
 
-```bash
-python scripts/render_diffusion_gifs.py \
-  --checkpoint runs/pokemon_i1/checkpoint.pt \
-  --out runs/pokemon_i1/denoising_gifs
-```
+PokéAPI's sprite repository notes that Pokémon image contents are copyright The
+Pokémon Company. Keep downloaded artwork isolated and use it only where your
+intended research use is appropriate; do not infer commercial redistribution
+rights from the sprite repository license.
 
-Each animation uses a fixed coordinate frame, records the actual stochastic
-reverse-DDPM trajectory, and holds the final exact-moment sample for one second.
-
-Run the Python and Rust tests with:
-
-```bash
-python -m unittest discover -s tests -v
-cargo test --all-targets
-```
+The original DatasauRust implementation is based on the paper
+[Same Stats, Different Graphs](https://www.autodesk.com/research/publications/same-stats-different-graphs)
+by Justin Matejka and George Fitzmaurice.

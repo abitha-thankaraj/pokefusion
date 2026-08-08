@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run the unchanged generic extractor on one held-out PokéAPI artwork."""
+"""Check the unchanged generic extractor on one held-out PokéAPI artwork."""
 
 from __future__ import annotations
 
-import argparse
 import csv
 import io
 import json
@@ -11,8 +10,9 @@ from pathlib import Path
 
 import requests
 
-from extract_contour import extract_contour
-from pokemon_common import canonical_json_bytes, load_config, sha256_bytes
+from pokefusion.data.extract_contour import extract_contour
+from pokefusion.data.pokemon_common import canonical_json_bytes, sha256_bytes
+from pokefusion.omega_config import as_plain_dict, load_cli_config
 
 
 def _contour_bytes(contours) -> bytes:
@@ -26,16 +26,18 @@ def _contour_bytes(contours) -> bytes:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pokemon-id", type=int, required=True)
-    parser.add_argument("--config", type=Path, default=Path("configs/pokemon_i1.yaml"))
-    parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args()
-    config = load_config(args.config)
-    configured_ids = {int(row["id"]) for row in config["pokemon"]}
-    if args.pokemon_id in configured_ids:
+    omega_config, _ = load_cli_config(__doc__ or "Check held-out artwork")
+    config = as_plain_dict(omega_config)
+    pokemon_id = int(omega_config.heldout.pokemon_id)
+    output = Path(omega_config.heldout.out)
+    source_manifest = Path(omega_config.run.data_root) / "source_manifest.jsonl"
+    configured_ids = {
+        int(json.loads(line)["pokemon"]["id"])
+        for line in source_manifest.read_text().splitlines()
+    }
+    if pokemon_id in configured_ids:
         raise ValueError("held-out ID must not appear in the training configuration")
-    api_url = f"https://pokeapi.co/api/v2/pokemon/{args.pokemon_id}"
+    api_url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}"
     api_response = requests.get(api_url, timeout=30)
     api_response.raise_for_status()
     record = api_response.json()
@@ -63,8 +65,8 @@ def main() -> None:
         "contour_sha256": sha256_bytes(_contour_bytes(contours)),
         "diagnostics": diagnostics,
     }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps(result, indent=2, sort_keys=True))
 
 

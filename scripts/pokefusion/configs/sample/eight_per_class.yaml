@@ -1,0 +1,8 @@
+# Generate and evaluate eight samples per class from the baseline checkpoint.
+checkpoint: runs/five_pokemon/checkpoint.pt
+out: runs/five_pokemon/samples
+samples_per_class: 8
+blind_grid_samples: 25
+stats_tolerance: 1.0e-4
+seed: 123
+device: auto

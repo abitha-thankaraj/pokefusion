@@ -1,0 +1,20 @@
+# Reproducible 30k-step baseline for the five-Pokémon dataset.
+data_dir: data/pokemon/points
+out: runs/five_pokemon
+target_csv: data/seed_datasets/Datasaurus_data.csv
+expected_points: 142
+stats_tolerance: 1.0e-4
+seed: 42
+device: auto
+
+training:
+  steps: 30000
+  batch_size: 64
+  learning_rate: 2.0e-4
+  diffusion_timesteps: 200
+  model_width: 128
+  model_layers: 4
+  attention_heads: 4
+  ema_decay: 0.999
+  log_every: 500
+  workers: 0

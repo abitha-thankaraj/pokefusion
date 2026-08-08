@@ -1,0 +1,7 @@
+# Render one reverse-diffusion GIF per class from the baseline checkpoint.
+checkpoint: runs/five_pokemon/checkpoint.pt
+out: runs/five_pokemon/denoising_gifs
+seed: 321
+frame_stride: 4
+fps: 12
+device: auto

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Acquire configured default-form artwork from PokéAPI with source metadata."""
+"""Acquire configured Pokémon artwork from PokéAPI with source metadata."""
 
 from __future__ import annotations
 
-import argparse
 import io
 import json
 from datetime import datetime, timezone
@@ -13,7 +12,8 @@ from typing import Any
 import requests
 from PIL import Image
 
-from pokemon_common import load_config, sha256_bytes
+from pokefusion.data.pokemon_common import sha256_bytes
+from pokefusion.omega_config import as_plain_dict, load_cli_config
 
 API_ROOT = "https://pokeapi.co/api/v2/pokemon"
 RIGHTS_NOTICE = (
@@ -25,7 +25,43 @@ RIGHTS_NOTICE = (
 def _read_existing(path: Path) -> dict[str, dict[str, Any]]:
     if not path.is_file():
         return {}
-    return {row["pokemon"]["name"]: row for row in map(json.loads, path.read_text().splitlines())}
+    result = {}
+    for row in map(json.loads, path.read_text().splitlines()):
+        result[row["pokemon"]["name"]] = row
+        result[str(row["pokemon"]["id"])] = row
+    return result
+
+
+def pokemon_identifier(entry: Any) -> str:
+    """Accept a name, an ID, or a mapping containing either one."""
+    if isinstance(entry, (str, int)):
+        return str(entry).strip().lower()
+    if isinstance(entry, dict):
+        value = entry.get("name", entry.get("id"))
+        if value is not None:
+            return str(value).strip().lower()
+    raise ValueError(f"Pokémon entry must be a name, ID, or mapping, got: {entry!r}")
+
+
+def load_cached_sources(config: dict[str, Any], data_root: Path) -> list[dict[str, Any]]:
+    """Return only the cached records requested by this config, in config order."""
+    manifest_path = data_root / "source_manifest.jsonl"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"{manifest_path} does not exist; set run.acquire=true for the first run"
+        )
+    previous = _read_existing(manifest_path)
+    records = []
+    for entry in config["pokemon"]:
+        identifier = pokemon_identifier(entry)
+        record = previous.get(identifier)
+        if record is None:
+            raise ValueError(
+                f"Pokémon {identifier!r} is absent from {manifest_path}; "
+                "set run.acquire=true to resolve it through PokéAPI"
+            )
+        records.append(record)
+    return records
 
 
 def _sprite(api_record: dict[str, Any]) -> tuple[str, str]:
@@ -40,29 +76,29 @@ def _sprite(api_record: dict[str, Any]) -> tuple[str, str]:
     raise ValueError("PokéAPI response has neither official-artwork nor home front_default")
 
 
-def acquire_all(config_path: Path, data_root: Path, refresh: bool = False) -> list[dict[str, Any]]:
-    config = load_config(config_path)
+def acquire_all(config: dict[str, Any], data_root: Path, refresh: bool = False) -> list[dict[str, Any]]:
     sources = data_root / "sources"
     sources.mkdir(parents=True, exist_ok=True)
     manifest_path = data_root / "source_manifest.jsonl"
     previous = _read_existing(manifest_path)
     records: list[dict[str, Any]] = []
     session = requests.Session()
-    session.headers["User-Agent"] = "datasaurust-pokemon-i1/1"
+    session.headers["User-Agent"] = "pokefusion/1"
 
-    for pokemon in config["pokemon"]:
-        name = pokemon["name"]
-        old = previous.get(name)
+    for entry in config["pokemon"]:
+        identifier = pokemon_identifier(entry)
+        old = previous.get(identifier)
         if old and not refresh:
             cached = data_root.parent.parent / old["local_path"]
             if cached.is_file() and sha256_bytes(cached.read_bytes()) == old["sha256"]:
                 records.append(old)
                 continue
 
-        api_url = f"{API_ROOT}/{pokemon['id']}"
+        api_url = f"{API_ROOT}/{identifier}"
         api_response = session.get(api_url, timeout=30)
         api_response.raise_for_status()
         api_record = api_response.json()
+        name = api_record["name"]
         sprite_field, asset_url = _sprite(api_record)
         asset_response = session.get(asset_url, timeout=60)
         asset_response.raise_for_status()
@@ -78,7 +114,7 @@ def acquire_all(config_path: Path, data_root: Path, refresh: bool = False) -> li
                 "schema_version": 1,
                 "pokemon": {
                     "id": int(api_record["id"]),
-                    "name": name,
+                    "name": api_record["name"],
                     "form": "default",
                 },
                 "api_url": api_url,
@@ -101,13 +137,16 @@ def acquire_all(config_path: Path, data_root: Path, refresh: bool = False) -> li
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=Path("configs/pokemon_i1.yaml"))
-    parser.add_argument("--data-root", type=Path, default=Path("data/pokemon"))
-    parser.add_argument("--refresh", action="store_true")
-    args = parser.parse_args()
-    records = acquire_all(args.config, args.data_root, args.refresh)
-    print(json.dumps({"downloaded_or_cached": len(records), "manifest": str(args.data_root / 'source_manifest.jsonl')}, indent=2))
+    config, _ = load_cli_config(__doc__ or "Acquire Pokémon artwork")
+    plain = as_plain_dict(config)
+    data_root = Path(config.run.data_root)
+    records = acquire_all(plain, data_root, bool(config.run.refresh_sources))
+    print(
+        json.dumps(
+            {"downloaded_or_cached": len(records), "manifest": str(data_root / "source_manifest.jsonl")},
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

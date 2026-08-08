@@ -1,0 +1,27 @@
+[project]
+name = "pokefusion"
+version = "0.1.0"
+description = "Generic Pokémon silhouette extraction and point-cloud diffusion for DatasauRust"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+  "contourpy>=1.2",
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "omegaconf>=2.3",
+  "pillow>=10",
+  "pyyaml>=6",
+  "requests>=2.31",
+  "scipy>=1.11",
+  "torch>=2.2",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["pokefusion", "pokefusion.data", "pokefusion.train", "pokefusion.visualize"]
+package-dir = { pokefusion = "." }
+
+[tool.uv]
+package = true

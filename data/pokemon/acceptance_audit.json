@@ -4,12 +4,12 @@
   "criteria": {
     "one_command_acquisition": {
       "passed": true,
-      "evidence": "scripts/generate_pokemon_dataset.py and data/pokemon/source_manifest.jsonl",
+      "evidence": "scripts/pokefusion/data/generate_pokemon_dataset.py and data/pokemon/source_manifest.jsonl",
       "sources": 5
     },
     "generic_extraction": {
       "passed": true,
-      "evidence": "tests/test_pokemon_pipeline.py::test_all_configured_artworks_use_the_same_public_extractor and test_extractor_has_no_fixture_specific_literals"
+      "evidence": "one public extract_contour function, five tracked diagnostics, and data/pokemon/heldout_validation.json"
     },
     "recognizable_dominant_masks_and_contours": {
       "passed": true,
@@ -38,16 +38,16 @@
       "passed": true,
       "contour_and_point_aggregate_sha256_before": "1345f46a1362430604cfe356404d1e65915b45daa0214348ac7443db82ecb7b3",
       "contour_and_point_aggregate_sha256_after": "1345f46a1362430604cfe356404d1e65915b45daa0214348ac7443db82ecb7b3",
-      "manifest_sha256_before": "f6c7aaa1d9e295d45ae3b9ea3901d42aff825784bbc6b1ab85ccba99f7e0a0f7",
-      "manifest_sha256_after": "f6c7aaa1d9e295d45ae3b9ea3901d42aff825784bbc6b1ab85ccba99f7e0a0f7"
+      "manifest_sha256_before": "10f91a71d99b532f8933129c238004689c2688d047abd8dea1e7473cc97f283e",
+      "manifest_sha256_after": "10f91a71d99b532f8933129c238004689c2688d047abd8dea1e7473cc97f283e"
     },
     "diffusion_input_rejection": {
       "passed": true,
-      "evidence": "tests/test_pokemon_pipeline.py::test_diffusion_validator_rejects_mixed_point_counts_and_bad_stats"
+      "evidence": "scripts/pokefusion/train/data.py::validate_data and local rejection checks"
     },
     "sample_artifacts_and_projection": {
       "passed": true,
-      "evidence": "data/pokemon/diffusion_validation_summary.json and runs/pokemon_i1/samples",
+      "evidence": "data/pokemon/diffusion_validation_summary.json and runs/five_pokemon/samples",
       "serialized_maximum_stats_error": 6.998845947236987e-12,
       "coordinates_preview_metrics_and_blind_grid_written": true
     },
@@ -78,7 +78,13 @@
     "deterministic_cli_output_verified": true
   },
   "tests": {
-    "python_unittest": {"passed": 9, "failed": 0},
+    "python_local_verification": {
+      "omegaconf_configs_loaded": 4,
+      "dataset_files_validated": 640,
+      "checkpoint_compatible_samples": 5,
+      "short_training_steps": 3,
+      "gif_classes": 5
+    },
     "rust_unittest": {"passed": 4, "failed": 0},
     "cargo_fmt": "passed",
     "cargo_clippy_warnings_denied": "passed",

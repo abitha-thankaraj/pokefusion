@@ -1,13 +1,30 @@
+# Five-class artwork-to-point-cloud dataset used throughout the README.
 schema_version: 1
 global_seed: 20250807
 split_seed: 42
 
+run:
+  data_root: data/pokemon
+  acquire: true
+  refresh_sources: false
+
+heldout:
+  pokemon_id: 7
+  out: data/pokemon/heldout_validation.json
+
+single_image:
+  image: null
+  contour_out: null
+  mask_out: null
+  preview_out: null
+  diagnostics_out: null
+
 pokemon:
-  - {id: 1, name: bulbasaur}
-  - {id: 25, name: pikachu}
-  - {id: 94, name: gengar}
-  - {id: 131, name: lapras}
-  - {id: 6, name: charizard}
+  - bulbasaur
+  - pikachu
+  - gengar
+  - lapras
+  - charizard
 
 source_policy:
   preferred: official-artwork

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Generic image-to-silhouette contour extraction with no subject-specific logic."""
+"""Extract image silhouettes generically, without subject-specific logic."""
 
 from __future__ import annotations
 
-import argparse
 import io
 import json
 import math
@@ -15,7 +14,8 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
-from pokemon_common import load_config, sha256_bytes, write_contours
+from pokefusion.data.pokemon_common import sha256_bytes, write_contours
+from pokefusion.omega_config import as_plain_dict, load_cli_config
 
 
 class ExtractionError(ValueError):
@@ -320,25 +320,23 @@ def save_preview(source: Path, mask: np.ndarray, contours: list[np.ndarray], pat
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("image", type=Path)
-    parser.add_argument("--config", type=Path, default=Path("configs/pokemon_i1.yaml"))
-    parser.add_argument("--contour-out", type=Path, required=True)
-    parser.add_argument("--mask-out", type=Path)
-    parser.add_argument("--preview-out", type=Path)
-    parser.add_argument("--diagnostics-out", type=Path)
-    args = parser.parse_args()
-    config = load_config(args.config)["extraction"]
-    mask, contours, diagnostics = extract_contour(args.image, config)
-    write_contours(args.contour_out, contours)
-    if args.mask_out:
-        args.mask_out.parent.mkdir(parents=True, exist_ok=True)
-        Image.fromarray(mask.astype(np.uint8) * 255, mode="L").save(args.mask_out)
-    if args.preview_out:
-        save_preview(args.image, mask, contours, args.preview_out)
-    if args.diagnostics_out:
-        args.diagnostics_out.parent.mkdir(parents=True, exist_ok=True)
-        args.diagnostics_out.write_text(json.dumps(diagnostics, indent=2, sort_keys=True) + "\n")
+    config, _ = load_cli_config(__doc__ or "Extract one contour")
+    if config.single_image.image is None or config.single_image.contour_out is None:
+        raise ValueError("single_image.image and single_image.contour_out must be set")
+    image = Path(config.single_image.image)
+    contour_out = Path(config.single_image.contour_out)
+    mask, contours, diagnostics = extract_contour(image, as_plain_dict(config.extraction))
+    write_contours(contour_out, contours)
+    if config.single_image.mask_out:
+        mask_out = Path(config.single_image.mask_out)
+        mask_out.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(mask.astype(np.uint8) * 255, mode="L").save(mask_out)
+    if config.single_image.preview_out:
+        save_preview(image, mask, contours, Path(config.single_image.preview_out))
+    if config.single_image.diagnostics_out:
+        diagnostics_out = Path(config.single_image.diagnostics_out)
+        diagnostics_out.parent.mkdir(parents=True, exist_ok=True)
+        diagnostics_out.write_text(json.dumps(diagnostics, indent=2, sort_keys=True) + "\n")
     print(json.dumps(diagnostics, indent=2, sort_keys=True))
 
 

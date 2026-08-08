@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared deterministic math and I/O for the Pokémon point-cloud pipeline."""
+"""Provide shared deterministic math and I/O for the Pokémon data pipeline."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import numpy as np
-import yaml
+from omegaconf import DictConfig, OmegaConf
 
 STAT_NAMES = ("mean_x", "mean_y", "std_x", "std_y", "corr")
 
 
 def load_config(path: Path) -> dict[str, Any]:
-    config = yaml.safe_load(path.read_text())
+    config = OmegaConf.to_container(OmegaConf.load(path), resolve=True, throw_on_missing=True)
     if not isinstance(config, dict) or config.get("schema_version") != 1:
         raise ValueError(f"{path}: expected schema_version: 1")
     return config
@@ -123,10 +123,11 @@ def stats_dict(stats: np.ndarray) -> dict[str, float]:
 def repository_revision(root: Path) -> str:
     """Hash the exact generator implementation instead of relying on dirty Git state."""
     paths = [
-        root / "scripts/acquire_pokemon.py",
-        root / "scripts/extract_contour.py",
-        root / "scripts/generate_pokemon_dataset.py",
-        root / "scripts/pokemon_common.py",
+        root / "scripts/pokefusion/data/acquire_pokemon.py",
+        root / "scripts/pokefusion/data/extract_contour.py",
+        root / "scripts/pokefusion/data/generate_pokemon_dataset.py",
+        root / "scripts/pokefusion/data/pokemon_common.py",
+        root / "scripts/pokefusion/omega_config.py",
     ]
     digest = hashlib.sha256()
     for path in paths:

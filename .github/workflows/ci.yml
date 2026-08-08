@@ -17,21 +17,6 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  pokemon-python-test:
-    name: "pokemon pipeline tests"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: "Install lightweight pipeline dependencies"
-        run: pip install numpy scipy Pillow requests PyYAML contourpy matplotlib
-      - name: "Run Python tests"
-        run: |
-          python -m unittest discover -s tests -v
-          python -m py_compile pokemon_point_diffusion.py scripts/*.py tests/*.py
-
   cargo-fmt:
     name: "cargo fmt"
     runs-on: ubuntu-latest

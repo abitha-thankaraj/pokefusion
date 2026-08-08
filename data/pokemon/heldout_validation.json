@@ -1,7 +1,7 @@
 {
   "api_url": "https://pokeapi.co/api/v2/pokemon/7",
   "asset_url": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png",
-  "config_sha256": "5ecb022e4891a11ef8c1862d201f56ef63d38a59004a1407b58373799d45fd80",
+  "config_sha256": "5baf9ef913c140faadb94e28958d5e5f5b4108737a967b2ea084b5ad1fee5cbc",
   "contour_sha256": "5ed97de00b20e7b962e5522c0f9d4c80579e5af38fe4c45f35590cbed0b74017",
   "diagnostics": {
     "alpha_threshold": 16,

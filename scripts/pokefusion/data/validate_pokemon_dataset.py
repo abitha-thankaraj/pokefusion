@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Validate point counts, exact invariants, hashes, and manifest coverage."""
+"""Validate Pokémon point counts, invariants, hashes, and manifest coverage."""
 
 from __future__ import annotations
 
-import argparse
 import csv
 import json
 from pathlib import Path
 
 import numpy as np
 
-from pokemon_common import STAT_NAMES, load_config, moments, read_points, sha256_file, stats_dict
+from pokefusion.data.pokemon_common import (
+    STAT_NAMES,
+    moments,
+    read_points,
+    sha256_file,
+    stats_dict,
+)
+from pokefusion.omega_config import as_plain_dict, load_cli_config
 
 
 def _headerless_rows(path: Path) -> int:
@@ -29,17 +35,16 @@ def _headerless_rows(path: Path) -> int:
     return count
 
 
-def validate(config_path: Path, data_root: Path) -> dict:
-    root = Path(__file__).resolve().parents[1]
-    config = load_config(config_path)
+def validate(config: dict, data_root: Path) -> dict:
+    root = Path(__file__).resolve().parents[3]
     generation = config["generation"]
     expected_points = int(generation["points_per_sample"])
-    expected_species = sorted(row["name"] for row in config["pokemon"])
     target_path = root / "data/seed_datasets/Datasaurus_data.csv"
     target_mean, target_cov, target_stats = moments(read_points(target_path))
     del target_mean, target_cov
     manifest_path = data_root / "manifest.jsonl"
     manifest = [json.loads(line) for line in manifest_path.read_text().splitlines()]
+    expected_species = sorted({row["pokemon"]["name"] for row in manifest})
     accepted = {row["points"]["path"]: row for row in manifest if row["status"] == "accepted"}
     maxima = np.zeros(5, dtype=np.float64)
     counts: dict[str, int] = {}
@@ -88,16 +93,12 @@ def validate(config_path: Path, data_root: Path) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=Path("configs/pokemon_i1.yaml"))
-    parser.add_argument("--data-root", type=Path, default=Path("data/pokemon"))
-    parser.add_argument(
-        "--summary-out", type=Path, default=Path("data/pokemon/validation_summary.json")
-    )
-    args = parser.parse_args()
-    summary = validate(args.config, args.data_root)
-    args.summary_out.parent.mkdir(parents=True, exist_ok=True)
-    args.summary_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    config, _ = load_cli_config(__doc__ or "Validate Pokémon point clouds")
+    data_root = Path(config.run.data_root)
+    summary = validate(as_plain_dict(config), data_root)
+    summary_out = data_root / "validation_summary.json"
+    summary_out.parent.mkdir(parents=True, exist_ok=True)
+    summary_out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
     print(json.dumps(summary, indent=2, sort_keys=True))
 
 
