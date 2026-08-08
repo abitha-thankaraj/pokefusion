@@ -95,7 +95,7 @@ def generate_dataset(
     acquire: bool = True,
     refresh_sources: bool = False,
 ) -> list[dict[str, Any]]:
-    root = Path(__file__).resolve().parents[3]
+    root = Path(__file__).resolve().parents[2]
     extraction_config = config["extraction"]
     generation_config = config["generation"]
     sample_count = int(samples_per_species or generation_config["samples_per_species"])

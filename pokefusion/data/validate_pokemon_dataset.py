@@ -36,7 +36,7 @@ def _headerless_rows(path: Path) -> int:
 
 
 def validate(config: dict, data_root: Path) -> dict:
-    root = Path(__file__).resolve().parents[3]
+    root = Path(__file__).resolve().parents[2]
     generation = config["generation"]
     expected_points = int(generation["points_per_sample"])
     target_path = root / "data/seed_datasets/Datasaurus_data.csv"

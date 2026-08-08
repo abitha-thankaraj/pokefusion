@@ -23,17 +23,16 @@ projected back to the exact target statistics.
 
 | Bulbasaur | Charizard | Gengar | Lapras | Pikachu |
 |---|---|---|---|---|
-| ![Bulbasaur denoising](scripts/pokefusion/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](scripts/pokefusion/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](scripts/pokefusion/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](scripts/pokefusion/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](scripts/pokefusion/examples/denoising_gifs/pikachu_denoising.gif) |
+| ![Bulbasaur denoising](pokefusion/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](pokefusion/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](pokefusion/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](pokefusion/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](pokefusion/examples/denoising_gifs/pikachu_denoising.gif) |
 
 ## Pokefusion: a self-contained data and diffusion package
 
-[`scripts/pokefusion/`](scripts/pokefusion) is a self-contained Python package
-for generating the Pokémon point-cloud datasets and training diffusion models
-on them. It keeps its own uv project and lockfile, OmegaConf configurations,
-data acquisition and validation tools, model code, training and sampling entry
-points, evaluation, and GIF visualization in one place. It installs as the
-`pokefusion` import package and does not depend on the parent `scripts`
-directory as a Python package.
+[`pokefusion/`](pokefusion) is a self-contained Python package for generating
+the Pokémon point-cloud datasets and training diffusion models on them. It keeps
+its own uv project and lockfile, OmegaConf configurations, data acquisition and
+validation tools, model code, training and sampling entry points, evaluation,
+and GIF visualization in one place. It installs as the `pokefusion` import
+package and does not depend on the repository's `scripts` directory.
 
 This layout makes the boundary with DatasauRust explicit. The Rust crate remains
 a separate component that can be built and used without Pokefusion, while
@@ -43,12 +42,12 @@ repository through paths declared in its configurations.
 ## Repository map
 
 ```text
-scripts/pokefusion/configs/                runnable OmegaConf experiment YAMLs
-scripts/pokefusion/data/                   acquire, extract, generate, and validate
-scripts/pokefusion/train/                  train, check, sample, and evaluate DDPM
-scripts/pokefusion/visualize/              render one denoising GIF per class
-scripts/pokefusion/pyproject.toml          isolated uv environment definition
-scripts/pokefusion/datasaurust_changelist.md  Rust extension notes and rationale
+pokefusion/configs/                runnable OmegaConf experiment YAMLs
+pokefusion/data/                   acquire, extract, generate, and validate
+pokefusion/train/                  train, check, sample, and evaluate DDPM
+pokefusion/visualize/              render one denoising GIF per class
+pokefusion/pyproject.toml          isolated uv environment definition
+pokefusion/datasaurust_changelist.md  Rust extension notes and rationale
 data/pokemon/contours/                     versioned example contour CSVs
 data/pokemon/manifest.jsonl                generated dataset provenance
 data/pokemon/points/<species>/*.csv        generated 142 × 2 training examples
@@ -66,13 +65,13 @@ Requirements are Python 3.10–3.14 and
 this repository:
 
 ```bash
-uv sync --project scripts/pokefusion
-uv run --project scripts/pokefusion python -c \
+uv sync --project pokefusion
+uv run --project pokefusion python -c \
   "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
 ```
 
 `uv sync` creates an isolated environment for the Python subproject and installs
-the dependencies declared in `scripts/pokefusion/pyproject.toml`. For a
+the dependencies declared in `pokefusion/pyproject.toml`. For a
 platform-specific CUDA or ROCm build, select the wheel
 recommended by the official [PyTorch installer](https://pytorch.org/get-started/locally/).
 CPU execution works for data generation and small smoke tests; training is much
@@ -91,8 +90,8 @@ mask, threshold, contour, or code change.
 filename you prefer and use that same path in the following commands.
 
 ```bash
-cp scripts/pokefusion/configs/data/five_pokemon.yaml \
-  scripts/pokefusion/configs/data/my_pokemon.yaml
+cp pokefusion/configs/data/five_pokemon.yaml \
+  pokefusion/configs/data/my_pokemon.yaml
 ```
 
 For example:
@@ -116,13 +115,13 @@ Every Pokémon command takes a YAML path followed by optional OmegaConf dot-list
 overrides. Run the configured 16-example-per-class dataset first:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.data.generate_pokemon_dataset \
-  scripts/pokefusion/configs/data/my_pokemon.yaml
+  pokefusion/configs/data/my_pokemon.yaml
 
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.data.validate_pokemon_dataset \
-  scripts/pokefusion/configs/data/my_pokemon.yaml
+  pokefusion/configs/data/my_pokemon.yaml
 ```
 
 The generation command performs the complete data path:
@@ -139,22 +138,22 @@ Inspect `data/pokemon/previews/<name>.png` before scaling up. Then generate the
 recommended first training volume:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.data.generate_pokemon_dataset \
-  scripts/pokefusion/configs/data/my_pokemon.yaml \
+  pokefusion/configs/data/my_pokemon.yaml \
   generation.samples_per_species=128
 
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.data.validate_pokemon_dataset \
-  scripts/pokefusion/configs/data/my_pokemon.yaml
+  pokefusion/configs/data/my_pokemon.yaml
 ```
 
 To test the unchanged extractor on a Pokémon absent from the training config:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.data.check_heldout_pokemon \
-  scripts/pokefusion/configs/data/my_pokemon.yaml \
+  pokefusion/configs/data/my_pokemon.yaml \
   heldout.pokemon_id=25 \
   heldout.out=data/pokemon/heldout_validation.json
 ```
@@ -164,17 +163,17 @@ uv run --project scripts/pokefusion python \
 First make the model validate every training file, point count, and invariant:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.train.check \
-  scripts/pokefusion/configs/train/baseline.yaml
+  pokefusion/configs/train/baseline.yaml
 ```
 
 Run the 30,000-step baseline:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.train.train \
-  scripts/pokefusion/configs/train/baseline.yaml
+  pokefusion/configs/train/baseline.yaml
 ```
 
 Training uses an 80/10/10 stratified split, randomizes point order on every
@@ -193,9 +192,9 @@ invariance.
 For a fast end-to-end smoke test, use fewer steps and a smaller model:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.train.train \
-  scripts/pokefusion/configs/train/baseline.yaml \
+  pokefusion/configs/train/baseline.yaml \
   out=runs/setup_check \
   training.steps=200 \
   training.model_width=32 \
@@ -208,9 +207,9 @@ uv run --project scripts/pokefusion python \
 Generate eight point clouds per class:
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.train.sample \
-  scripts/pokefusion/configs/sample/eight_per_class.yaml
+  pokefusion/configs/sample/eight_per_class.yaml
 ```
 
 The sampler writes coordinate CSVs, a labeled preview, a balanced blinded grid
@@ -221,9 +220,9 @@ against all five target statistics.
 ## 6. Render one denoising GIF per Pokémon
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.visualize.render_diffusion_gifs \
-  scripts/pokefusion/configs/visualize/denoising_gifs.yaml
+  pokefusion/configs/visualize/denoising_gifs.yaml
 ```
 
 Useful controls:
@@ -254,14 +253,14 @@ cargo run --release -- \
 ```
 
 The Rust-specific changes are listed with their rationale in
-[`scripts/pokefusion/datasaurust_changelist.md`](scripts/pokefusion/datasaurust_changelist.md).
+[`pokefusion/datasaurust_changelist.md`](pokefusion/datasaurust_changelist.md).
 
 ## Verification
 
 ```bash
-uv run --project scripts/pokefusion python \
+uv run --project pokefusion python \
   -m pokefusion.train.check \
-  scripts/pokefusion/configs/train/baseline.yaml
+  pokefusion/configs/train/baseline.yaml
 cargo fmt --all --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-targets --all-features

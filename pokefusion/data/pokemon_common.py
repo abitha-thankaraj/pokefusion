@@ -123,11 +123,11 @@ def stats_dict(stats: np.ndarray) -> dict[str, float]:
 def repository_revision(root: Path) -> str:
     """Hash the exact generator implementation instead of relying on dirty Git state."""
     paths = [
-        root / "scripts/pokefusion/data/acquire_pokemon.py",
-        root / "scripts/pokefusion/data/extract_contour.py",
-        root / "scripts/pokefusion/data/generate_pokemon_dataset.py",
-        root / "scripts/pokefusion/data/pokemon_common.py",
-        root / "scripts/pokefusion/omega_config.py",
+        root / "pokefusion/data/acquire_pokemon.py",
+        root / "pokefusion/data/extract_contour.py",
+        root / "pokefusion/data/generate_pokemon_dataset.py",
+        root / "pokefusion/data/pokemon_common.py",
+        root / "pokefusion/omega_config.py",
     ]
     digest = hashlib.sha256()
     for path in paths:
