@@ -25,21 +25,24 @@ projected back to the exact target statistics.
 |---|---|---|---|---|
 | ![Bulbasaur denoising](pokefusion/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](pokefusion/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](pokefusion/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](pokefusion/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](pokefusion/examples/denoising_gifs/pikachu_denoising.gif) |
 
-## Pokefusion: a self-contained data and diffusion package
+## What this fork adds
 
-[`pokefusion/`](pokefusion) is a self-contained Python package for generating
-the Pokémon point-cloud datasets and training diffusion models on them. It keeps
-its own uv project and lockfile, OmegaConf configurations, data acquisition and
-validation tools, model code, training and sampling entry points, evaluation,
-and GIF visualization in one place. It installs as the `pokefusion` import
-package and does not depend on the repository's `scripts` directory.
+- A generic pipeline that fetches Pokémon artwork by name, extracts its contour,
+  and generates validated 142-point training examples.
+- A class-conditional point-cloud diffusion model with commands for training,
+  sampling, evaluation, and denoising GIFs.
+- OmegaConf YAML configurations and a locked uv environment for reproducible
+  data generation and experiments.
+- DatasauRust support for runtime contour CSVs, deterministic optimization,
+  exact covariance projection, full-precision validation, and run manifests.
+  See [`datasaurust_changelist.md`](datasaurust_changelist.md) for the complete
+  list of Rust changes.
 
-This layout makes the boundary with DatasauRust explicit. The Rust crate remains
-a separate component that can be built and used without Pokefusion, while
-Pokefusion exchanges contours, point clouds, and run artifacts with the wider
-repository through paths declared in its configurations.
+## Code organization
 
-## Repository map
+The Python workflow is a self-contained package under [`pokefusion/`](pokefusion).
+The existing DatasauRust crate remains separate and can still be built and used
+without the Python package.
 
 ```text
 pokefusion/configs/                runnable OmegaConf experiment YAMLs
@@ -47,11 +50,12 @@ pokefusion/data/                   acquire, extract, generate, and validate
 pokefusion/train/                  train, check, sample, and evaluate DDPM
 pokefusion/visualize/              render one denoising GIF per class
 pokefusion/pyproject.toml          isolated uv environment definition
-datasaurust_changelist.md                 Rust extension notes and rationale
-data/pokemon/contours/                     versioned example contour CSVs
-data/pokemon/manifest.jsonl                generated dataset provenance
-data/pokemon/points/<species>/*.csv        generated 142 × 2 training examples
-runs/<name>/                               checkpoints, samples, metrics, and GIFs
+datasaurust_changelist.md          Rust extension notes and rationale
+data/pokemon/contours/             versioned example contour CSVs
+data/pokemon/manifest.jsonl        generated dataset provenance
+data/pokemon/points/<species>/*.csv
+                                   generated 142 × 2 training examples
+runs/<name>/                       checkpoints, samples, metrics, and GIFs
 ```
 
 Generated artwork, masks, point clouds, manifests, diagnostics, validation
@@ -180,14 +184,6 @@ Training uses an 80/10/10 stratified split, randomizes point order on every
 access, whitens the shared covariance, predicts DDPM noise with a
 permutation-equivariant Transformer, and saves EMA weights in
 `runs/five_pokemon/checkpoint.pt`.
-
-The training implementation follows the small, explicit style of
-[tiny-diffusion](https://github.com/tanelp/tiny-diffusion): `data.py` owns the
-statistical contract and whitening, `model.py` defines the denoiser,
-`diffusion.py` writes out the forward and reverse equations, and `train.py`
-contains the complete optimization loop. Comments explain the less obvious
-choices, especially covariance, correlation, projection, and point-order
-invariance.
 
 For a fast end-to-end smoke test, use fewer steps and a smaller model:
 
