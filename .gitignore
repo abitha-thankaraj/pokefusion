@@ -7,6 +7,9 @@ data/pokemon/sources/
 data/pokemon/masks/
 data/pokemon/previews/
 data/pokemon/points/
+data/pokemon/*.json
+data/pokemon/*.jsonl
+data/pokemon/contours/*.diagnostics.json
 runs/
 .venv/
 __pycache__/

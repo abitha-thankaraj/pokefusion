@@ -1,20 +1,37 @@
 # Pokefusion: Pokémon Point-Cloud Diffusion
 
-[![CI](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml/badge.svg)](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml)
+[![CI](https://github.com/abitha-thankaraj/pokefusion/actions/workflows/ci.yml/badge.svg)](https://github.com/abitha-thankaraj/pokefusion/actions/workflows/ci.yml)
 
-Generate statistically constrained Pokémon point clouds and train diffusion
-models on them.
+Give Pokefusion a list of Pokémon names. It fetches their artwork, traces each
+silhouette, generates statistically constrained point-cloud training data, and
+trains a diffusion model to create new examples.
 
-This repository extends [DatasauRust](https://github.com/araffin/datasaurust)
-with a reproducible way to generate training data from Pokémon artwork and
-train a point-cloud diffusion model on it. The extension turns each image into
-a validated 142-point silhouette, then provides the training, sampling,
-evaluation, and visualization workflow needed to learn from those datasets.
+```text
+Pokémon names → artwork → 142-point datasets → diffusion model → new silhouettes + GIFs
+```
 
-Every accepted cloud has the same full-precision mean, sample standard
-deviations, and Pearson correlation as the original Datasaurus dataset. The
-model learns shape from coordinates only; raster images are used for source
-extraction and visual evaluation, never as training inputs.
+The model learns from coordinates only; images are used to prepare and inspect
+the dataset, never as model inputs. Every accepted point cloud retains the same
+full-precision mean, sample standard deviations, and Pearson correlation as the
+original Datasaurus dataset.
+
+## Denoising in action
+
+<p align="center">
+  <img src="docs/examples/denoising_gifs/pikachu_denoising.gif" alt="Pikachu point cloud emerging from Gaussian noise" width="460">
+</p>
+
+<p align="center"><em>Gaussian noise → Pikachu over the actual 200-step reverse-DDPM trajectory.</em></p>
+
+The axes remain fixed throughout the animation so the denoising process is
+easy to follow. The final point cloud is projected back to the exact target
+mean, sample covariance, standard deviations, and Pearson correlation.
+
+### More generated classes
+
+| Bulbasaur | Charizard | Gengar | Lapras |
+|---|---|---|---|
+| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) |
 
 ## Pokefusion: a self-contained data and diffusion package
 
@@ -31,15 +48,6 @@ a separate component that can be built and used without Pokefusion, while
 Pokefusion exchanges contours, point clouds, and run artifacts with the wider
 repository through paths declared in its configurations.
 
-## Denoising examples
-
-Each animation starts from Gaussian noise and shows the actual 200-step reverse
-DDPM trajectory. The final frame is projected back to the exact target moments.
-
-| Bulbasaur | Charizard | Gengar | Lapras | Pikachu |
-|---|---|---|---|---|
-| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](docs/examples/denoising_gifs/pikachu_denoising.gif) |
-
 ## Repository map
 
 ```text
@@ -49,15 +57,15 @@ scripts/pokefusion/train/                  train, check, sample, and evaluate DD
 scripts/pokefusion/visualize/              render one denoising GIF per class
 scripts/pokefusion/pyproject.toml          isolated uv environment definition
 scripts/pokefusion/datasaurust_changelist.md  Rust extension notes and rationale
-data/pokemon/contours/                  versioned deterministic contour artifacts
-data/pokemon/manifest.jsonl             dataset provenance and acceptance records
-data/pokemon/points/<species>/*.csv     generated 142 × 2 training examples
-runs/<name>/                            checkpoints, samples, metrics, and GIFs
+data/pokemon/contours/                     versioned example contour CSVs
+data/pokemon/manifest.jsonl                generated dataset provenance
+data/pokemon/points/<species>/*.csv        generated 142 × 2 training examples
+runs/<name>/                               checkpoints, samples, metrics, and GIFs
 ```
 
-Large generated artifacts under `data/pokemon/points/` and `runs/` are ignored
-by Git. Small contours, manifests, validation summaries, and documentation
-examples are versioned.
+Generated artwork, masks, point clouds, manifests, diagnostics, validation
+reports, and training runs are ignored by Git. Only the small example contour
+CSVs and documentation GIFs are versioned.
 
 ## 1. Set up Python with uv
 
