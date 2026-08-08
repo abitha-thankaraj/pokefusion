@@ -3,13 +3,30 @@
 [![CI](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml/badge.svg)](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml)
 
 This repository extends [DatasauRust](https://github.com/araffin/datasaurust)
-with a reproducible pipeline that turns official Pokémon artwork into 142-point
-silhouettes and trains a class-conditional point-cloud diffusion model on them.
+with a reproducible way to generate training data from Pokémon artwork and
+train a point-cloud diffusion model on it. The extension turns each image into
+a validated 142-point silhouette, then provides the training, sampling,
+evaluation, and visualization workflow needed to learn from those datasets.
 
 Every accepted cloud has the same full-precision mean, sample standard
 deviations, and Pearson correlation as the original Datasaurus dataset. The
 model learns shape from coordinates only; raster images are used for source
 extraction and visual evaluation, never as training inputs.
+
+## Pokefusion: a self-contained data and diffusion package
+
+[`scripts/pokefusion/`](scripts/pokefusion) is a self-contained Python package
+for generating the Pokémon point-cloud datasets and training diffusion models
+on them. It keeps its own uv project and lockfile, OmegaConf configurations,
+data acquisition and validation tools, model code, training and sampling entry
+points, evaluation, and GIF visualization in one place. It installs as the
+`pokefusion` import package and does not depend on the parent `scripts`
+directory as a Python package.
+
+This layout makes the boundary with DatasauRust explicit. The Rust crate remains
+a separate component that can be built and used without Pokefusion, while
+Pokefusion exchanges contours, point clouds, and run artifacts with the wider
+repository through paths declared in its configurations.
 
 ## Denoising examples
 
@@ -39,10 +56,6 @@ Large generated artifacts under `data/pokemon/points/` and `runs/` are ignored
 by Git. Small contours, manifests, validation summaries, and documentation
 examples are versioned.
 
-`scripts/pokefusion/` is a self-contained Python subproject. It installs the
-`pokefusion` import package and does not require `scripts` to be a Python
-package or appear in application imports.
-
 ## 1. Set up Python with uv
 
 Requirements are Python 3.10–3.14 and
@@ -70,6 +83,9 @@ stable Rust toolchain and run `cargo test` once.
 Copy the supplied configuration and replace its `pokemon` list. Adding a new
 species requires only its lowercase PokéAPI name—no ID lookup, species-specific
 mask, threshold, contour, or code change.
+
+`my_pokemon.yaml` below is only an example filename; replace it with any valid
+filename you prefer and use that same path in the following commands.
 
 ```bash
 cp scripts/pokefusion/configs/data/five_pokemon.yaml \
