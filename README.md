@@ -47,7 +47,7 @@ pokefusion/data/                   acquire, extract, generate, and validate
 pokefusion/train/                  train, check, sample, and evaluate DDPM
 pokefusion/visualize/              render one denoising GIF per class
 pokefusion/pyproject.toml          isolated uv environment definition
-pokefusion/datasaurust_changelist.md  Rust extension notes and rationale
+datasaurust_changelist.md                 Rust extension notes and rationale
 data/pokemon/contours/                     versioned example contour CSVs
 data/pokemon/manifest.jsonl                generated dataset provenance
 data/pokemon/points/<species>/*.csv        generated 142 × 2 training examples
@@ -253,7 +253,7 @@ cargo run --release -- \
 ```
 
 The Rust-specific changes are listed with their rationale in
-[`pokefusion/datasaurust_changelist.md`](pokefusion/datasaurust_changelist.md).
+[`datasaurust_changelist.md`](datasaurust_changelist.md).
 
 ## Verification
 
