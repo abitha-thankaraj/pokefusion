@@ -15,23 +15,15 @@ the dataset, never as model inputs. Every accepted point cloud retains the same
 full-precision mean, sample standard deviations, and Pearson correlation as the
 original Datasaurus dataset.
 
-## Denoising in action
+## Denoising examples
 
-<p align="center">
-  <img src="docs/examples/denoising_gifs/pikachu_denoising.gif" alt="Pikachu point cloud emerging from Gaussian noise" width="460">
-</p>
+Each animation starts from Gaussian noise and shows the actual 200-step reverse
+DDPM trajectory. The axes remain fixed throughout, and the final frame is
+projected back to the exact target statistics.
 
-<p align="center"><em>Gaussian noise → Pikachu over the actual 200-step reverse-DDPM trajectory.</em></p>
-
-The axes remain fixed throughout the animation so the denoising process is
-easy to follow. The final point cloud is projected back to the exact target
-mean, sample covariance, standard deviations, and Pearson correlation.
-
-### More generated classes
-
-| Bulbasaur | Charizard | Gengar | Lapras |
-|---|---|---|---|
-| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) |
+| Bulbasaur | Charizard | Gengar | Lapras | Pikachu |
+|---|---|---|---|---|
+| ![Bulbasaur denoising](docs/examples/denoising_gifs/bulbasaur_denoising.gif) | ![Charizard denoising](docs/examples/denoising_gifs/charizard_denoising.gif) | ![Gengar denoising](docs/examples/denoising_gifs/gengar_denoising.gif) | ![Lapras denoising](docs/examples/denoising_gifs/lapras_denoising.gif) | ![Pikachu denoising](docs/examples/denoising_gifs/pikachu_denoising.gif) |
 
 ## Pokefusion: a self-contained data and diffusion package
 
