@@ -1,6 +1,9 @@
-# DatasauRust Pokémon
+# Pokefusion: Pokémon Point-Cloud Diffusion
 
 [![CI](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml/badge.svg)](https://github.com/abitha-thankaraj/datasaurust/actions/workflows/ci.yml)
+
+Generate statistically constrained Pokémon point clouds and train diffusion
+models on them.
 
 This repository extends [DatasauRust](https://github.com/araffin/datasaurust)
 with a reproducible way to generate training data from Pokémon artwork and
