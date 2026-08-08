@@ -135,6 +135,17 @@ Sampling writes one coordinate CSV per generated cloud, `metrics.json`, a
 class-labeled preview, a randomized 5 × 5 blinded preview, and its separate key.
 All saved samples are reprojected to the exact target moments.
 
+Render one reusable reverse-diffusion GIF per class from a trained checkpoint:
+
+```bash
+python scripts/render_diffusion_gifs.py \
+  --checkpoint runs/pokemon_i1/checkpoint.pt \
+  --out runs/pokemon_i1/denoising_gifs
+```
+
+Each animation uses a fixed coordinate frame, records the actual stochastic
+reverse-DDPM trajectory, and holds the final exact-moment sample for one second.
+
 Run the Python and Rust tests with:
 
 ```bash
